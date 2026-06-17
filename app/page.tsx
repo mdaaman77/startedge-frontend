@@ -2,14 +2,14 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { 
-  ArrowRight, 
-  Star, 
-  Users, 
-  Clock, 
-  Shield, 
-  Verified, 
-  Lock, 
+import {
+  ArrowRight,
+  Star,
+  Users,
+  Clock,
+  Shield,
+  Verified,
+  Lock,
   Zap,
   Heart,
   Scale,
@@ -19,19 +19,28 @@ import {
   Briefcase,
   TrendingUp,
   User,
-  Loader2
 } from 'lucide-react'
-
-const stats = [
-  { value: '500+', label: 'Verified Consultants' },
-  { value: '98%', label: 'Customer Satisfaction' },
-  { value: '24/7', label: 'Availability' },
-]
+import { Navbar } from '@/components/ui/Navbar'
+import { Footer } from '@/components/ui/Footer'
+import { ConsultantScroll } from '@/components/client/ConsultantScroll'
+import { useListConsultantsQuery } from '@/lib/api/consultant'
 
 const steps = [
-  { icon: <Users size={32} />, title: 'Choose Consultant', desc: 'Browse profiles, read reviews, and select the perfect expert for your needs.' },
-  { icon: <Zap size={32} />, title: 'Start Chatting', desc: 'Connect instantly via high-quality chat with end-to-end encryption.' },
-  { icon: <Clock size={32} />, title: 'Pay Only for Time', desc: 'Wallet-based billing ensures you only pay for the exact seconds you consult.' },
+  {
+    icon: <Users size={32} />,
+    title: 'Choose Consultant',
+    desc: 'Browse profiles, read reviews, and select the perfect expert for your needs.',
+  },
+  {
+    icon: <Zap size={32} />,
+    title: 'Start Chatting',
+    desc: 'Connect instantly via high-quality chat with end-to-end encryption.',
+  },
+  {
+    icon: <Clock size={32} />,
+    title: 'Pay Only for Time',
+    desc: 'Wallet-based billing ensures you only pay for the exact seconds you consult.',
+  },
 ]
 
 const categories = [
@@ -43,16 +52,29 @@ const categories = [
   { icon: <Briefcase size={28} />, name: 'Business', desc: 'Startup scaling, marketing, and operations.' },
 ]
 
+const HERO_CONSULTANT_ID = 'eecabfe2-9fc4-4295-95a6-57bc35e15d34'
+
 export default function Home() {
+  const { data: consultants } = useListConsultantsQuery({ limit: 100 })
+  const { data: heroConsultant } = useListConsultantsQuery({
+    limit: 100,
+  })
+
+  const verifiedCount = consultants?.length || 0
+  const consultant = heroConsultant?.find((c) => c.user_id === HERO_CONSULTANT_ID)
+
   return (
     <div className="min-h-screen bg-surface">
+      <Navbar />
+
       {/* Hero Section */}
-      <section className="relative min-h-[900px] flex items-center justify-center overflow-hidden">
+      <section className="relative min-h-[900px] flex items-center justify-center overflow-hidden pt-16">
         <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px] animate-pulse" />
         <div className="absolute bottom-[10%] right-[-5%] w-[400px] h-[400px] bg-secondary-container/10 rounded-full blur-[100px]" />
-        
+
         <div className="container mx-auto px-4 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Left Column */}
             <motion.div
               initial={{ opacity: 0, x: -30 }}
               animate={{ opacity: 1, x: 0 }}
@@ -75,29 +97,44 @@ export default function Home() {
                     Get Started Free <ArrowRight size={18} />
                   </button>
                 </Link>
-                <Link href="/consultants">
-                  <button className="btn-outline">
-                    Browse Consultants
-                  </button>
+                <Link href="/client/consultants">
+                  <button className="btn-outline">Browse Consultants</button>
                 </Link>
               </div>
-              
+
+              {/* Stats */}
               <div className="grid grid-cols-3 gap-4 mt-12">
-                {stats.map((stat, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 + index * 0.1 }}
-                    className="text-center lg:text-left"
-                  >
-                    <div className="text-2xl md:text-3xl font-bold text-primary">{stat.value}</div>
-                    <div className="text-xs text-on-surface-variant">{stat.label}</div>
-                  </motion.div>
-                ))}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="text-center lg:text-left"
+                >
+                  <div className="text-2xl md:text-3xl font-bold text-primary">{verifiedCount}+</div>
+                  <div className="text-xs text-on-surface-variant">Verified Consultants</div>
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-center lg:text-left"
+                >
+                  <div className="text-2xl md:text-3xl font-bold text-primary">98%</div>
+                  <div className="text-xs text-on-surface-variant">Customer Satisfaction</div>
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="text-center lg:text-left"
+                >
+                  <div className="text-2xl md:text-3xl font-bold text-primary">24/7</div>
+                  <div className="text-xs text-on-surface-variant">Availability</div>
+                </motion.div>
               </div>
             </motion.div>
 
+            {/* Right Column - Hero Card */}
             <motion.div
               initial={{ opacity: 0, x: 30 }}
               animate={{ opacity: 1, x: 0 }}
@@ -107,14 +144,26 @@ export default function Home() {
               <div className="glass-card rounded-2xl p-6 max-w-md mx-auto animate-pulse-glow">
                 <div className="flex items-center justify-between mb-6 pb-4 border-b border-outline-variant/30">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center">
-                      <User className="w-6 h-6 text-on-primary-container" />
+                    <div className="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center overflow-hidden">
+                      {consultant?.avatar_url ? (
+                        <img
+                          src={consultant.avatar_url}
+                          alt={consultant.first_name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <User className="w-6 h-6 text-on-primary-container" />
+                      )}
                     </div>
                     <div>
-                      <h4 className="font-bold text-on-surface">Consultant Name</h4>
+                      <h4 className="font-bold text-on-surface">
+                        {consultant ? `${consultant.first_name} ${consultant.last_name}` : 'Consultant Name'}
+                      </h4>
                       <div className="flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-tertiary"></span>
-                        <span className="text-xs text-tertiary">Live Session</span>
+                        <span className="text-xs text-tertiary">
+                          {consultant?.is_online ? 'Live Session' : 'Offline'}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -129,18 +178,22 @@ export default function Home() {
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-on-surface-variant">Current Rate</span>
-                    <span className="font-bold text-on-surface">₹0/min</span>
+                    <span className="font-bold text-on-surface">
+                      {consultant ? `₹${consultant.per_minute_fee}/min` : '₹0/min'}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-on-surface-variant">Accrued Cost</span>
                     <span className="font-bold text-primary">₹0.00</span>
                   </div>
                   <div className="p-3 bg-surface-container rounded-lg border border-outline-variant/30">
-                    <p className="text-sm italic text-on-surface-variant">"Consultation will appear here..."</p>
+                    <p className="text-sm italic text-on-surface-variant">
+                      {consultant?.bio || 'Consultation will appear here'}
+                    </p>
                   </div>
                 </div>
               </div>
-              
+
               <div className="absolute -bottom-4 -right-4 glass-card px-3 py-2 rounded-lg flex items-center gap-2 animate-float">
                 <Verified size={16} className="text-tertiary" />
                 <span className="text-xs font-medium">Secure Payment</span>
@@ -150,13 +203,16 @@ export default function Home() {
         </div>
       </section>
 
+      {/* How It Works */}
       <section className="py-20 bg-surface-container-low">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">How It <span className="gradient-text">Works</span></h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              How It <span className="gradient-text">Works</span>
+            </h2>
             <div className="w-16 h-1 bg-primary mx-auto rounded-full"></div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {steps.map((step, index) => (
               <motion.div
@@ -178,18 +234,25 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Specialized Domains */}
       <section className="py-20">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-end mb-8">
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-2">Specialized <span className="gradient-text">Domains</span></h2>
-              <p className="text-on-surface-variant max-w-xl">Every consultant on StartEdge is vetted through a multi-stage verification process to ensure professional excellence.</p>
+              <h2 className="text-3xl md:text-4xl font-bold mb-2">
+                Specialized <span className="gradient-text">Domains</span>
+              </h2>
+              <p className="text-on-surface-variant max-w-xl">
+                Every consultant on StartEdge is vetted through a multi-stage verification process to ensure professional excellence.
+              </p>
             </div>
-            <button className="text-primary font-medium flex items-center gap-1 hover:gap-2 transition-all">
-              View All <ArrowRight size={16} />
-            </button>
+            <Link href="/client/consultants">
+              <button className="text-primary font-medium flex items-center gap-1 hover:gap-2 transition-all">
+                View All <ArrowRight size={16} />
+              </button>
+            </Link>
           </div>
-          
+
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {categories.map((cat, index) => (
               <motion.div
@@ -209,50 +272,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Top Rated Experts Section - Empty State */}
-      <section className="py-20 bg-surface-container-low">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl md:text-4xl font-bold mb-2">Top Rated <span className="gradient-text">Experts</span></h2>
-            <p className="text-on-surface-variant">Our highest-rated consultants trusted by thousands</p>
-          </div>
-          
-          <div className="flex overflow-x-auto gap-6 pb-4 custom-scrollbar">
-            {[1, 2, 3, 4].map((_, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, x: 20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-                viewport={{ once: true }}
-                className="min-w-[280px] glass-card p-4 rounded-xl"
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-surface-variant flex items-center justify-center animate-pulse">
-                      <Loader2 className="w-6 h-6 text-on-surface-variant animate-spin" />
-                    </div>
-                    <div>
-                      <div className="h-5 w-28 bg-surface-variant rounded animate-pulse mb-1"></div>
-                      <div className="h-3 w-20 bg-surface-variant rounded animate-pulse"></div>
-                    </div>
-                  </div>
-                  <div className="h-6 w-16 bg-surface-variant rounded-full animate-pulse"></div>
-                </div>
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-1">
-                    <Star size={14} className="fill-yellow-500 text-yellow-500" />
-                    <div className="h-4 w-8 bg-surface-variant rounded animate-pulse"></div>
-                  </div>
-                  <div className="h-3 w-20 bg-surface-variant rounded animate-pulse"></div>
-                </div>
-                <div className="h-9 w-full bg-surface-variant rounded-lg animate-pulse"></div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Top Rated Experts - Real API */}
+      <ConsultantScroll limit={10} />
 
+      {/* CTA Section */}
       <section className="py-20">
         <div className="container mx-auto px-4">
           <div className="glass-card rounded-2xl p-12 text-center max-w-4xl mx-auto">
@@ -269,6 +292,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <Footer />
     </div>
   )
 }

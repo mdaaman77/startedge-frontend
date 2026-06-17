@@ -179,3 +179,13 @@ body {
   background: #464554;
   border-radius: 10px;
 }
+
+/* Hide scrollbar for consultant cards */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
