@@ -7,9 +7,14 @@ import { useGetMeQuery, useLogoutMutation } from '@/lib/api/auth'
 export const useAuth = () => {
   const router = useRouter()
   const pathname = usePathname()
+
+  // Only run getMe if token exists in localStorage
+  const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+
   const { data: user, isLoading, isError, refetch } = useGetMeQuery(undefined, {
-    skip: typeof window === 'undefined' || !localStorage.getItem('access_token'),
+    skip: !token,
   })
+
   const [logout] = useLogoutMutation()
 
   useEffect(() => {
@@ -37,7 +42,7 @@ export const useAuth = () => {
 
   return {
     user,
-    isLoading,
+    isLoading: isLoading || (!!token && !user),
     isAuthenticated: !!user,
     isClient: user?.role === 'client',
     isConsultant: user?.role === 'consultant',

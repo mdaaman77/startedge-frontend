@@ -3,6 +3,7 @@ import type { RootState } from '@/lib/store/store'
 
 const baseQuery = fetchBaseQuery({
   baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+  credentials: 'include', // ADD THIS - sends cookies with requests
   prepareHeaders: (headers, { getState }) => {
     const token = localStorage.getItem('access_token')
     if (token) {

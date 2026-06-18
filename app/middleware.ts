@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
@@ -7,12 +8,13 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const accessToken = request.cookies.get('access_token')?.value
 
-  if (publicRoutes.some(route => pathname === route)) {
-    if (accessToken && pathname !== '/') {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
-    }
-    return NextResponse.next()
-  }
+ 
+   if (publicRoutes.some(route => pathname === route)) {
+      if (accessToken) {
+        return NextResponse.redirect(new URL('/client/dashboard', request.url))
+     }
+      return NextResponse.next()
+}
 
   if (!accessToken) {
     const loginUrl = new URL('/login', request.url)
