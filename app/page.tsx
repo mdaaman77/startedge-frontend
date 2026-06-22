@@ -10,6 +10,7 @@ import { Footer } from '@/components/ui/Footer'
 import { useListConsultantsQuery } from '@/lib/api/consultant'
 import { useAuth } from '@/hooks/useAuth'
 import { formatPrice } from '@/lib/utils/utils'
+import ConsultantsPage from "@/app/client/consultants/page";
 
 const steps = [
   {
@@ -79,10 +80,10 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-surface">
       <Navbar />
-
+<ConsultantsPage/>
       <main className="container mx-auto px-4 pt-24 pb-12">
         {/* Consultants Section with View All Button */}
-        <div className="flex justify-between items-center mb-6">
+      {/*  <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-on-surface">Consultants</h2>
           <Link href="/client/consultants">
             <button className="text-primary font-medium flex items-center gap-1 hover:gap-2 transition-all">
@@ -90,9 +91,9 @@ export default function Home() {
             </button>
           </Link>
         </div>
-
+*/}
         {/* Mobile: 2 cards per row + horizontal scrollable */}
-        <div className="lg:hidden overflow-x-auto hide-scrollbar pb-4">
+       {/* <div className="lg:hidden overflow-x-auto hide-scrollbar pb-4">
           <div className="flex gap-4" style={{ width: 'max-content' }}>
             {displayConsultants.map((consultant, index) => (
               <motion.div
@@ -176,9 +177,9 @@ export default function Home() {
             ))}
           </div>
         </div>
-
+/*}
         {/* Desktop: Grid */}
-        <div className="hidden lg:grid grid-cols-4 gap-4">
+       {/* <div className="hidden lg:grid grid-cols-4 gap-4">
           {displayConsultants.map((consultant, index) => (
             <motion.div
               key={consultant.id}
@@ -260,7 +261,7 @@ export default function Home() {
             </motion.div>
           ))}
         </div>
-
+*/}
         {/* Stats Section */}
         <div className="my-12">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">

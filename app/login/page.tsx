@@ -49,7 +49,9 @@ export default function LoginPage() {
       toast.error(err.data?.detail || 'Login failed. Please check your credentials.')
     }
   }
-
+const handleRedirect = () => {
+  router.push("/"); 
+};
   return (
     <div className="min-h-screen flex">
       {/* Left Panel - Brand Panel */}
@@ -59,7 +61,7 @@ export default function LoginPage() {
           <div className="absolute bottom-[-5%] left-[-5%] w-[300px] h-[300px] bg-secondary-container/10 rounded-full blur-[80px]"></div>
         </div>
 
-        <div className="relative z-10">
+        <div className="relative z-10" onClick={handleRedirect} >
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center">
               <Rocket className="w-5 h-5 text-on-primary-container" />

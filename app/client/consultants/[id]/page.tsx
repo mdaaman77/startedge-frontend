@@ -23,13 +23,13 @@ export default function ConsultantProfilePage() {
     consultantId,
     { skip: !consultantId }
   )
-
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push('/register')
-    }
-  }, [authLoading, isAuthenticated, router])
-
+{/*
+  // useEffect(() => {
+  //   if (!authLoading && !isAuthenticated) {
+  //     router.push('/register')
+  //   }
+  // }, [authLoading, isAuthenticated,router])
+*/}
   if (authLoading || consultantLoading) {
     return <LoadingSpinner />
   }

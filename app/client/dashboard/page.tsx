@@ -11,6 +11,7 @@ import { WalletSidebar } from '@/components/client/WalletSidebar'
 import { EditProfileModal } from '@/components/client/EditProfileModal'
 import { useGetWalletBalanceQuery, useGetWalletTransactionsQuery } from '@/lib/api/wallet'
 import { formatPrice } from '@/lib/utils/utils'
+import ConsultantsPage from "@/app/client/consultants/page";
 
 export default function ClientDashboard() {
   const router = useRouter()
@@ -99,7 +100,10 @@ export default function ClientDashboard() {
         balance={balance}
         transactions={transactions}
       />
-
+      {/* consultants list */}
+<div className="[&>div]:min-h-0 [&_main]:pt-6 [&_main]:pb-0 [&_main]:mx-auto ">
+  <ConsultantsPage />
+</div>
       {/* Edit Profile Modal */}
       <EditProfileModal
         isOpen={isProfileModalOpen}

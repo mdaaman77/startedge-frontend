@@ -88,7 +88,7 @@ export function Navbar({ onWalletClick }: NavbarProps) {
         </Link>
 
         {/* Desktop Navigation */}
-        <div className="hidden md:flex items-center gap-8">
+        {/* <div className="hidden md:flex items-center gap-8">
           {isAuthenticated && (
             <Link
               href="/client/consultants"
@@ -97,7 +97,7 @@ export function Navbar({ onWalletClick }: NavbarProps) {
               Consultants
             </Link>
           )}
-        </div>
+        </div> */}
 
         {/* Desktop Right Side */}
         <div className="hidden md:flex items-center gap-3">
@@ -116,8 +116,9 @@ export function Navbar({ onWalletClick }: NavbarProps) {
                 onClick={handleWalletClick}
                 className="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-variant transition-colors"
               >
-                <Wallet size={20} />
+                <Wallet size={20}/>
               </button>
+              
 
               {/* Avatar Dropdown */}
               <div ref={dropdownRef} className="relative">
