@@ -13,12 +13,15 @@ export const uiSlice = createSlice({
   initialState,
   reducers: {
     openWalletSidebar: (state) => {
+      console.log('🔓 openWalletSidebar reducer called')
       state.isWalletOpen = true
     },
     closeWalletSidebar: (state) => {
+      console.log('🔒 closeWalletSidebar reducer called')
       state.isWalletOpen = false
     },
     toggleWalletSidebar: (state) => {
+      console.log('🔄 toggleWalletSidebar reducer called')
       state.isWalletOpen = !state.isWalletOpen
     },
   },

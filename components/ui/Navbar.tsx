@@ -4,29 +4,30 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Menu, X, Rocket, User, LogOut, ChevronDown, Bell, Wallet } from 'lucide-react'
+import { 
+  Menu, X, Rocket, User, LogOut, ChevronDown, Bell, Wallet, 
+  LayoutDashboard, Briefcase, DollarSign, Users 
+} from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { ThemeToggle } from './ThemeToggle'
 import { useGetMyConsultationsQuery } from '@/lib/api/consultation'
 import { useListConsultantsQuery } from '@/lib/api/consultant'
+import { useAppDispatch } from '@/lib/store/hooks'
+import { openWalletSidebar } from '@/lib/store/features/uiSlice'
 
-interface NavbarProps {
-  onWalletClick?: () => void
-}
-
-export function Navbar({ onWalletClick }: NavbarProps) {
+export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const router = useRouter()
+  const dispatch = useAppDispatch()
   const { user, isAuthenticated, logout } = useAuth()
 
   const { data: consultations } = useGetMyConsultationsQuery({ limit: 5 }, { skip: !isAuthenticated })
   const { data: allConsultants } = useListConsultantsQuery({ limit: 100 }, { skip: !isAuthenticated })
 
-  // Get recent consultants (unique consultants from consultations)
   const recentConsultants = consultations
     ?.filter(c => c.consultant)
     .map(c => c.consultant!)
@@ -67,7 +68,7 @@ export function Navbar({ onWalletClick }: NavbarProps) {
 
   const handleWalletClick = () => {
     setIsDropdownOpen(false)
-    onWalletClick?.()
+    dispatch(openWalletSidebar())
   }
 
   return (
@@ -87,18 +88,6 @@ export function Navbar({ onWalletClick }: NavbarProps) {
           <span className="text-xl font-black text-primary">StartEdge</span>
         </Link>
 
-        {/* Desktop Navigation */}
-        {/* <div className="hidden md:flex items-center gap-8">
-          {isAuthenticated && (
-            <Link
-              href="/client/consultants"
-              className="text-sm font-medium transition-colors hover:text-primary text-on-surface-variant"
-            >
-              Consultants
-            </Link>
-          )}
-        </div> */}
-
         {/* Desktop Right Side */}
         <div className="hidden md:flex items-center gap-3">
           <ThemeToggle />
@@ -115,10 +104,10 @@ export function Navbar({ onWalletClick }: NavbarProps) {
               <button
                 onClick={handleWalletClick}
                 className="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-variant transition-colors"
+                aria-label="Open wallet"
               >
-                <Wallet size={20}/>
+                <Wallet size={20} />
               </button>
-              
 
               {/* Avatar Dropdown */}
               <div ref={dropdownRef} className="relative">
@@ -150,7 +139,7 @@ export function Navbar({ onWalletClick }: NavbarProps) {
                       transition={{ duration: 0.2 }}
                       className="absolute right-0 top-full mt-2 w-64 bg-surface-container border border-outline-variant/50 rounded-xl shadow-xl overflow-hidden"
                     >
-                      {/* Edit Profile */}
+                      {/* Edit Profile - Common */}
                       <button
                         onClick={() => {
                           setIsDropdownOpen(false)
@@ -163,25 +152,63 @@ export function Navbar({ onWalletClick }: NavbarProps) {
                         Edit Profile
                       </button>
 
-                      {/* Dashboard */}
-                      <Link
-                        href="/client/dashboard"
-                        onClick={() => setIsDropdownOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3 text-sm text-on-surface hover:bg-surface-variant transition-colors w-full text-left"
-                      >
-                        <User className="w-4 h-4" />
-                        Dashboard
-                      </Link>
+                      {/* Client Links */}
+                      {user?.role === 'client' && (
+                        <button
+                          onClick={() => {
+                            setIsDropdownOpen(false)
+                            router.push('/client/apply-consultant')
+                          }}
+                          className="flex items-center gap-3 px-4 py-3 text-sm text-on-surface hover:bg-surface-variant transition-colors w-full text-left"
+                        >
+                          <Briefcase className="w-4 h-4" />
+                          Apply as Consultant
+                        </button>
+                      )}
 
-                      {/* Consultants */}
-                      <Link
-                        href="/client/consultants"
-                        onClick={() => setIsDropdownOpen(false)}
-                        className="flex items-center gap-3 px-4 py-3 text-sm text-on-surface hover:bg-surface-variant transition-colors w-full text-left"
-                      >
-                        <User className="w-4 h-4" />
-                        Consultants
-                      </Link>
+                      {/* Consultant Links */}
+                      {user?.role === 'consultant' && (
+                        <>
+                          <Link
+                            href="/consultant/dashboard"
+                            onClick={() => setIsDropdownOpen(false)}
+                            className="flex items-center gap-3 px-4 py-3 text-sm text-on-surface hover:bg-surface-variant transition-colors w-full text-left"
+                          >
+                            <LayoutDashboard className="w-4 h-4" />
+                            Dashboard
+                          </Link>
+                          <Link
+                            href="/consultant/earnings"
+                            onClick={() => setIsDropdownOpen(false)}
+                            className="flex items-center gap-3 px-4 py-3 text-sm text-on-surface hover:bg-surface-variant transition-colors w-full text-left"
+                          >
+                            <DollarSign className="w-4 h-4" />
+                            Earnings
+                          </Link>
+                        </>
+                      )}
+
+                      {/* Admin Links */}
+                      {user?.role === 'admin' && (
+                        <>
+                          <Link
+                            href="/admin/dashboard"
+                            onClick={() => setIsDropdownOpen(false)}
+                            className="flex items-center gap-3 px-4 py-3 text-sm text-on-surface hover:bg-surface-variant transition-colors w-full text-left"
+                          >
+                            <LayoutDashboard className="w-4 h-4" />
+                            Dashboard
+                          </Link>
+                          <Link
+                            href="/admin/users"
+                            onClick={() => setIsDropdownOpen(false)}
+                            className="flex items-center gap-3 px-4 py-3 text-sm text-on-surface hover:bg-surface-variant transition-colors w-full text-left"
+                          >
+                            <Users className="w-4 h-4" />
+                            Users
+                          </Link>
+                        </>
+                      )}
 
                       {/* Divider */}
                       <div className="border-t border-outline-variant/30" />
@@ -272,7 +299,7 @@ export function Navbar({ onWalletClick }: NavbarProps) {
                       {/* Divider */}
                       <div className="border-t border-outline-variant/30" />
 
-                      {/* Logout */}
+                      {/* Logout - Common */}
                       <button
                         onClick={handleLogout}
                         className="flex items-center gap-3 px-4 py-3 text-sm text-red-400 hover:bg-red-500/10 transition-colors w-full text-left"
@@ -329,13 +356,95 @@ export function Navbar({ onWalletClick }: NavbarProps) {
 
               {isAuthenticated ? (
                 <>
-                  <Link
-                    href="/client/consultants"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
-                  >
-                    Consultants
-                  </Link>
+                  {/* Client Links - Removed Consultants and Dashboard */}
+                  {user?.role === 'client' && (
+                    <button
+                      onClick={() => {
+                        setIsMobileMenuOpen(false)
+                        router.push('/client/apply-consultant')
+                      }}
+                      className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2 text-left"
+                    >
+                      Apply as Consultant
+                    </button>
+                  )}
+
+                  {/* Consultant Links */}
+                  {user?.role === 'consultant' && (
+                    <>
+                      <Link
+                        href="/consultant/dashboard"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
+                      >
+                        Dashboard
+                      </Link>
+                      <Link
+                        href="/consultant/earnings"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
+                      >
+                        Earnings
+                      </Link>
+                      <Link
+                        href="/consultant/requests"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
+                      >
+                        Requests
+                      </Link>
+                      <Link
+                        href="/consultant/profile"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
+                      >
+                        Profile
+                      </Link>
+                    </>
+                  )}
+
+                  {/* Admin Links */}
+                  {user?.role === 'admin' && (
+                    <>
+                      <Link
+                        href="/admin/dashboard"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
+                      >
+                        Dashboard
+                      </Link>
+                      <Link
+                        href="/admin/users"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
+                      >
+                        Users
+                      </Link>
+                      <Link
+                        href="/admin/consultant-requests"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
+                      >
+                        Consultant Requests
+                      </Link>
+                      <Link
+                        href="/admin/consultations"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
+                      >
+                        Consultations
+                      </Link>
+                      <Link
+                        href="/admin/transactions"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
+                      >
+                        Transactions
+                      </Link>
+                    </>
+                  )}
+
+                  {/* Common for all roles */}
                   <button
                     onClick={() => {
                       setIsMobileMenuOpen(false)
@@ -346,22 +455,12 @@ export function Navbar({ onWalletClick }: NavbarProps) {
                   >
                     Edit Profile
                   </button>
-                  <Link
-                    href="/client/dashboard"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
-                  >
-                    Dashboard
-                  </Link>
-                  <Link
-                    href="/client/consultations"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
-                  >
-                    Consultations
-                  </Link>
+
                   <button
-                    onClick={handleLogout}
+                    onClick={() => {
+                      setIsMobileMenuOpen(false)
+                      handleLogout()
+                    }}
                     className="text-sm font-medium text-red-400 hover:text-red-300 transition-colors py-2 text-left"
                   >
                     Logout

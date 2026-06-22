@@ -8,15 +8,18 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import toast from 'react-hot-toast'
 import { useAuth } from '@/hooks/useAuth'
+import { useUpdateProfileMutation, useChangePasswordMutation } from '@/lib/api/user'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 
+// --- Profile Schema ---
 const profileSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
   last_name: z.string().min(1, 'Last name is required'),
-  phone: z.string().min(10, 'Phone number must be at least 10 digits'),
+  phone: z.string().optional().nullable(),
 })
 
+// --- Password Schema ---
 const passwordSchema = z
   .object({
     old_password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -46,14 +49,18 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
   const [showOldPassword, setShowOldPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false)
-  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const [updateProfile, { isLoading: isUpdatingProfile }] = useUpdateProfileMutation()
+  const [changePassword, { isLoading: isChangingPassword }] = useChangePasswordMutation()
+
+  // --- Profile Form ---
   const {
     register: registerProfile,
     handleSubmit: handleProfileSubmit,
     formState: { errors: profileErrors },
     reset: resetProfile,
+    watch: watchProfile,
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -63,14 +70,25 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
     },
   })
 
+  // --- Password Form ---
   const {
     register: registerPassword,
     handleSubmit: handlePasswordSubmit,
     formState: { errors: passwordErrors },
     reset: resetPassword,
+    watch: watchPassword,
   } = useForm<PasswordFormData>({
     resolver: zodResolver(passwordSchema),
+    defaultValues: {
+      old_password: '',
+      new_password: '',
+      confirm_password: '',
+    },
   })
+
+  // Watch password fields to check if they're filled
+  const passwordValues = watchPassword()
+  const hasPasswordChanges = passwordValues.old_password || passwordValues.new_password || passwordValues.confirm_password
 
   useEffect(() => {
     if (user) {
@@ -82,30 +100,102 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
     }
   }, [user, resetProfile])
 
-  const onProfileUpdate = async (data: ProfileFormData) => {
-    setIsUpdatingProfile(true)
+  // Helper function to extract error message
+  const getErrorMessage = (error: any): string => {
+    if (typeof error === 'string') return error
+    
+    if (error?.data?.detail) {
+      if (Array.isArray(error.data.detail)) {
+        return error.data.detail.map((e: any) => e.msg || e.message).join(', ')
+      }
+      if (typeof error.data.detail === 'string') {
+        return error.data.detail
+      }
+    }
+    
+    if (error?.data?.message) return error.data.message
+    if (error?.error) return error.error
+    
+    return 'An error occurred. Please try again.'
+  }
+
+  // --- Combined Submit Handler ---
+  const onSubmit = async (data: {
+    profile: ProfileFormData
+    password: PasswordFormData
+  }) => {
+    const { profile, password } = data
+    
+    setIsSubmitting(true)
+    
     try {
+      // Step 1: Check if profile has changes
+      const profileData: Record<string, string | null> = {}
+      
+      if (profile.first_name && profile.first_name !== user?.first_name) {
+        profileData.first_name = profile.first_name
+      }
+      if (profile.last_name && profile.last_name !== user?.last_name) {
+        profileData.last_name = profile.last_name
+      }
+      if (profile.phone !== undefined && profile.phone !== user?.phone) {
+        profileData.phone = profile.phone?.trim() === '' ? null : profile.phone
+      }
+      
+      const hasProfileChanges = Object.keys(profileData).length > 0
+      
+      // Step 2: Check if password has changes
+      const hasPasswordChanges = password.old_password && password.new_password && password.confirm_password
+      
+      // If no changes, show message and close
+      if (!hasProfileChanges && !hasPasswordChanges) {
+        toast('No changes to save', { icon: 'ℹ️' })
+        onClose()
+        return
+      }
+      
+      // Step 3: Update profile if changed
+      if (hasProfileChanges) {
+        await updateProfile(profileData).unwrap()
+        console.log('✅ Profile updated')
+      }
+      
+      // Step 4: Update password if changed
+      if (hasPasswordChanges) {
+        await changePassword({
+          old_password: password.old_password,
+          new_password: password.new_password,
+          confirm_password: password.confirm_password,
+        }).unwrap()
+        console.log('✅ Password updated')
+      }
+      
+      // Step 5: Success
       toast.success('Profile updated successfully')
       await refetch()
+      resetPassword()
       onClose()
+      
     } catch (error: any) {
-      toast.error(error.message || 'Failed to update profile')
+      const errorMessage = getErrorMessage(error)
+      toast.error(errorMessage)
     } finally {
-      setIsUpdatingProfile(false)
+      setIsSubmitting(false)
     }
   }
 
-  const onPasswordChange = async (data: PasswordFormData) => {
-    setIsChangingPassword(true)
-    try {
-      toast.success('Password changed successfully')
-      resetPassword()
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to change password')
-    } finally {
-      setIsChangingPassword(false)
-    }
+  // --- Individual Submit Handlers (for backward compatibility) ---
+  const onProfileUpdate = async (data: ProfileFormData) => {
+    // This is now handled by the combined submit
+    onSubmit({ profile: data, password: watchPassword() })
   }
+
+  const onPasswordChange = async (data: PasswordFormData) => {
+    // This is now handled by the combined submit
+    onSubmit({ profile: watchProfile(), password: data })
+  }
+
+  const isLoading = isUpdatingProfile || isChangingPassword || isSubmitting
 
   return (
     <AnimatePresence>
@@ -136,7 +226,7 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
               </div>
 
               <div className="p-6 space-y-6">
-                {/* Profile Form */}
+                {/* Profile Form - Now submits everything together */}
                 <form onSubmit={handleProfileSubmit(onProfileUpdate)} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -178,7 +268,7 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
 
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">
-                      Phone
+                      Phone (optional)
                     </label>
                     <Input
                       {...registerProfile('phone')}
@@ -188,15 +278,9 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
                     />
                   </div>
 
-                  <Button type="submit" variant="gradient" disabled={isUpdatingProfile} className="w-full">
-                    {isUpdatingProfile ? 'Saving...' : 'Save Profile'}
-                  </Button>
-                </form>
+                  <div className="border-t border-outline-variant/30 my-4" />
 
-                <div className="border-t border-outline-variant/30 my-4" />
-
-                {/* Change Password Section */}
-                <form onSubmit={handlePasswordSubmit(onPasswordChange)} className="space-y-4">
+                  {/* Change Password Section - Integrated */}
                   <h3 className="text-sm font-semibold text-on-surface">Change Password</h3>
 
                   <div>
@@ -268,8 +352,8 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
                     </div>
                   </div>
 
-                  <Button type="submit" variant="outline" disabled={isChangingPassword} className="w-full">
-                    {isChangingPassword ? 'Changing...' : 'Change Password'}
+                  <Button type="submit" variant="gradient" disabled={isLoading} className="w-full">
+                    {isLoading ? 'Saving...' : 'Save All Changes'}
                   </Button>
                 </form>
               </div>

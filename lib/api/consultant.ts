@@ -31,8 +31,44 @@ export interface ConsultantListParams {
   limit?: number
 }
 
+// --- Consultant Request Types ---
+export interface ConsultantRequestCreate {
+  about_yourself: string
+  why_consultant: string
+  category: string
+  specialization_id: string | null
+  experience_years: number | null
+  per_minute_fee: number
+  linkedin_url?: string | null
+  resume_url?: string | null
+}
+
+export interface ConsultantRequestResponse {
+  id: string
+  user_id: string
+  about_yourself: string | null
+  why_consultant: string | null
+  category: string
+  specialization_id: string | null
+  specialization_name: string | null
+  experience_years: number | null
+  per_minute_fee: number
+  linkedin_url: string | null
+  resume_url: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  rejection_reason: string | null
+  created_at: string
+  updated_at: string
+  first_name: string
+  last_name: string
+  email: string
+  phone: string | null
+  avatar_url: string | null
+}
+
 export const consultantApi = api.injectEndpoints({
   endpoints: (builder) => ({
+    // --- Existing Endpoints ---
     listConsultants: builder.query<Consultant[], ConsultantListParams>({
       query: (params) => {
         const searchParams = new URLSearchParams()
@@ -58,10 +94,33 @@ export const consultantApi = api.injectEndpoints({
       query: (id) => `/consultants/${id}`,
       providesTags: (result, error, id) => [{ type: 'Consultant', id }],
     }),
+
+    // --- Consultant Request Endpoints ---
+    applyForConsultant: builder.mutation<ConsultantRequestResponse, ConsultantRequestCreate>({
+      query: (body) => ({
+        url: '/consultants/request',
+        method: 'POST',
+        body,
+      }),
+      invalidatesTags: ['ConsultantRequest'],
+    }),
+
+    getMyConsultantRequest: builder.query<ConsultantRequestResponse | null, void>({
+      query: () => '/consultants/request/me',
+      providesTags: ['ConsultantRequest'],
+      transformErrorResponse: (response) => {
+        if (response.status === 404) {
+          return null
+        }
+        return response
+      },
+    }),
   }),
 })
 
 export const {
   useListConsultantsQuery,
   useGetConsultantQuery,
+  useApplyForConsultantMutation,
+  useGetMyConsultantRequestQuery,
 } = consultantApi

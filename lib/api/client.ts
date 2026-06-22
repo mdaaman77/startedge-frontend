@@ -3,7 +3,7 @@ import type { RootState } from '@/lib/store/store'
 
 const baseQuery = fetchBaseQuery({
   baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-  credentials: 'include', // ADD THIS - sends cookies with requests
+  credentials: 'include',
   prepareHeaders: (headers, { getState }) => {
     const token = localStorage.getItem('access_token')
     if (token) {
@@ -46,6 +46,6 @@ const baseQueryWithReauth: typeof baseQuery = async (args, api, extraOptions) =>
 
 export const api = createApi({
   baseQuery: baseQueryWithReauth,
-  tagTypes: ['User', 'Consultant', 'Consultation', 'Wallet'],
+  tagTypes: ['User', 'Consultant', 'Consultation', 'Wallet', 'ConsultantRequest'], // ✅ Add 'ConsultantRequest'
   endpoints: () => ({}),
 })

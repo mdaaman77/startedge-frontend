@@ -17,14 +17,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
     return (
       <div className="w-full">
-        <div className="input-wrapper">
-          {icon && <div className="input-icon">{icon}</div>}
+        <div className="relative">
+          {icon && <div className="absolute left-3 top-1/2 -translate-y-1/2 text-outline">{icon}</div>}
           <input
             ref={ref}
             type={inputType}
             className={cn(
-              'input-field',
-              isPassword && 'input-field-password',
+              'w-full px-4 py-2 bg-surface-container-high border border-outline-variant/30 rounded-lg text-sm text-on-surface placeholder:text-outline focus:outline-none focus:border-primary transition-colors',
+              icon && 'pl-10',
+              isPassword && 'pr-10',
               className
             )}
             {...props}
@@ -33,13 +34,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="password-toggle"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors"
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           )}
         </div>
-        {error && <p className="text-red-400 text-sm mt-1">{error}</p>}
+        {error && <p className="text-error text-xs mt-1">{error}</p>}
       </div>
     )
   }

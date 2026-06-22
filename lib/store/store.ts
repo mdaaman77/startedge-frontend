@@ -5,8 +5,8 @@ import uiReducer from '@/lib/store/features/uiSlice'
 
 export const store = configureStore({
   reducer: {
-    [api.reducerPath]: api.reducer, // Keeps your automated RTK Query caching
-    ui: uiReducer,                  // 2. Mount the local UI toggles reducer
+    [api.reducerPath]: api.reducer,
+    ui: uiReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(api.middleware),

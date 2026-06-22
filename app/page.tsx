@@ -65,6 +65,8 @@ export default function Home() {
     )
   }
 
+  
+
   const totalConsultants = consultants?.length || 0
   const displayConsultants = consultants || []
 
@@ -263,6 +265,7 @@ export default function Home() {
         </div>
 */}
         {/* Stats Section */}
+        {!isAuthenticated ? (
         <div className="my-12">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <motion.div
@@ -301,8 +304,10 @@ export default function Home() {
             </motion.div>
           </div>
         </div>
-
+  ):(<div> </div>)}
         {/* How It Works Section */}
+        {!isAuthenticated ? (
+
         <section className="mt-20">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
@@ -330,6 +335,8 @@ export default function Home() {
             ))}
           </div>
         </section>
+        ):(<div> </div>)}
+      
       </main>
 
       <Footer />

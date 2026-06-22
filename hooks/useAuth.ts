@@ -34,7 +34,7 @@ export const useAuth = () => {
 
   const getDashboardPath = () => {
     if (!user) return '/login'
-    if (user.role === 'client') return '/client/dashboard'
+    if (user.role === 'client') return '/'
     if (user.role === 'consultant') return '/consultant/dashboard'
     if (user.role === 'admin') return '/admin/dashboard'
     return '/'
