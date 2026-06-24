@@ -56,7 +56,8 @@ export interface ConsultantRequestResponse {
   linkedin_url: string | null
   resume_url: string | null
   status: 'pending' | 'approved' | 'rejected'
-  rejection_reason: string | null
+  rejection_reason: string | 'No reason Given'
+  blocked_until: string | null
   created_at: string
   updated_at: string
   first_name: string
@@ -106,15 +107,21 @@ export const consultantApi = api.injectEndpoints({
     }),
 
     getMyConsultantRequest: builder.query<ConsultantRequestResponse | null, void>({
-      query: () => '/consultants/request/me',
-      providesTags: ['ConsultantRequest'],
-      transformErrorResponse: (response) => {
-        if (response.status === 404) {
-          return null
-        }
-        return response
-      },
-    }),
+  query: () => '/consultants/request/me',
+  providesTags: ['ConsultantRequest'],
+  
+  transformResponse: (response: ConsultantRequestResponse) => {
+    return response
+  },
+  transformErrorResponse: (response) => {
+    // Return null for 404 (no application found)
+    if (response.status === 404) {
+      return null
+    }
+    // For other errors, return the error
+    return response
+  },
+}),
   }),
 })
 

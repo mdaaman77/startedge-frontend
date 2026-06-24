@@ -28,6 +28,15 @@ export interface WalletTransactionList {
   limit: number
 }
 
+// Add Money Response
+export interface AddMoneyResponse {
+  success: boolean
+  amount: number
+  new_balance: number
+  transaction_id: string
+  message: string
+}
+
 export const walletApi = api.injectEndpoints({
   endpoints: (builder) => ({
     getWalletBalance: builder.query<WalletBalance, void>({
@@ -53,6 +62,19 @@ export const walletApi = api.injectEndpoints({
       query: () => '/wallet/transactions/summary',
       providesTags: ['Wallet'],
     }),
+
+    // Add Money Mutation
+    addMoney: builder.mutation<AddMoneyResponse, { amount: number }>({
+      query: (body) => ({
+        url: '/wallet/add-money',
+        method: 'POST',
+        body: {
+          amount: body.amount,
+          payment_method: 'manual', // Phase 1: manual top-up
+        },
+      }),
+      invalidatesTags: ['Wallet'],
+    }),
   }),
 })
 
@@ -60,4 +82,5 @@ export const {
   useGetWalletBalanceQuery,
   useGetWalletTransactionsQuery,
   useGetWalletTransactionSummaryQuery,
+  useAddMoneyMutation,
 } = walletApi

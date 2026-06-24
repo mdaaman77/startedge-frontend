@@ -8,14 +8,14 @@ export interface Consultation {
   per_minute_rate: number
   total_amount: number
   status:
-    | 'requested'
-    | 'accepted'
-    | 'in_progress'
-    | 'completed'
-    | 'rejected'
-    | 'expired'
-    | 'disputed'
-    | 'refunded'
+  | 'requested'
+  | 'accepted'
+  | 'in_progress'
+  | 'completed'
+  | 'rejected'
+  | 'expired'
+  | 'disputed'
+  | 'refunded'
   started_at: string | null
   ended_at: string | null
   actual_minutes: number | null
@@ -83,7 +83,27 @@ export const consultationApi = api.injectEndpoints({
       }),
       invalidatesTags: ['Consultation'],
     }),
+
+
+
+    getRecentConsultants: builder.query<any[], void>({
+  query: () => {
+    console.log('🔵 Calling GET /consultations/recent-consultants')
+    return '/consultations/recent-consultants'
+  },
+  providesTags: ['Consultant'],
+}),
+
+    getChatHistory: builder.query<any[], string>({
+      query: (consultantId) => `/consultations/${consultantId}/chat-history`,
+      providesTags: ['Consultation'],
+    }),
   }),
 })
 
-export const { useGetMyConsultationsQuery, useRequestConsultationMutation } = consultationApi
+export const {
+  useGetMyConsultationsQuery,
+  useRequestConsultationMutation,
+  useGetRecentConsultantsQuery,
+  useGetChatHistoryQuery,
+} = consultationApi

@@ -1,41 +1,35 @@
 'use client'
 
-import { useTheme } from 'next-themes'
+import { useDispatch, useSelector } from 'react-redux'
+import { RootState } from '@/lib/store'
+import { toggleTheme } from '@/lib/store/features/themeSlice'
+import { Moon, Sun } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Sun, Moon } from 'lucide-react'
 
 export function ThemeToggle() {
+  const dispatch = useDispatch()
+  const mode = useSelector((state: RootState) => state.theme.mode)
   const [mounted, setMounted] = useState(false)
-  const { theme, setTheme } = useTheme()
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
   if (!mounted) {
-    return <div className="w-8 h-8" />
+    return <div className="w-9 h-9" />
   }
 
-  const isDark = theme === 'dark'
-
   return (
-    <motion.button
-      whileTap={{ scale: 0.9 }}
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      className="relative w-8 h-8 rounded-lg bg-surface-container-high border border-outline-variant/30 flex items-center justify-center text-on-surface-variant hover:text-primary hover:border-primary/50 transition-all duration-200"
+    <button
+      onClick={() => dispatch(toggleTheme())}
+      className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
       aria-label="Toggle theme"
     >
-      <motion.div
-        initial={false}
-        animate={{
-          rotate: isDark ? 0 : 180,
-          scale: isDark ? 1 : 0.8,
-        }}
-        transition={{ duration: 0.3 }}
-      >
-        {isDark ? <Moon size={18} /> : <Sun size={18} />}
-      </motion.div>
-    </motion.button>
+      {mode === 'dark' ? (
+        <Sun className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+      ) : (
+        <Moon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
+      )}
+    </button>
   )
 }

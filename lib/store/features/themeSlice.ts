@@ -1,45 +1,43 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, PayloadAction } from '@reduxjs/toolkit'
 
-type ThemeMode = 'light' | 'dark';
+type ThemeMode = 'light' | 'dark'
 
 interface ThemeState {
-  mode: ThemeMode;
-  isHydrated: boolean;
+  mode: ThemeMode
+  isHydrated: boolean
 }
 
 const initialState: ThemeState = {
   mode: 'light',
   isHydrated: false,
-};
+}
 
 const themeSlice = createSlice({
   name: 'theme',
   initialState,
   reducers: {
     hydrateTheme: (state) => {
-      if (typeof window === 'undefined') return;
-      const stored = localStorage.getItem('theme') as ThemeMode;
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      state.mode = stored === 'light' || stored === 'dark' ? stored : prefersDark ? 'dark' : 'light';
-      state.isHydrated = true;
-      document.documentElement.classList.toggle('dark', state.mode === 'dark');
+      if (typeof window === 'undefined') return
+      const stored = localStorage.getItem('theme') as ThemeMode
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      state.mode = stored === 'light' || stored === 'dark' ? stored : prefersDark ? 'dark' : 'light'
+      state.isHydrated = true
     },
     toggleTheme: (state) => {
-      state.mode = state.mode === 'light' ? 'dark' : 'light';
+      state.mode = state.mode === 'light' ? 'dark' : 'light'
       if (typeof window !== 'undefined') {
-        localStorage.setItem('theme', state.mode);
-        document.documentElement.classList.toggle('dark', state.mode === 'dark');
+        localStorage.setItem('theme', state.mode)
       }
     },
     setTheme: (state, action: PayloadAction<ThemeMode>) => {
-      state.mode = action.payload;
+      state.mode = action.payload
+      state.isHydrated = true
       if (typeof window !== 'undefined') {
-        localStorage.setItem('theme', action.payload);
-        document.documentElement.classList.toggle('dark', action.payload === 'dark');
+        localStorage.setItem('theme', action.payload)
       }
     },
   },
-});
+})
 
-export const { hydrateTheme, toggleTheme, setTheme } = themeSlice.actions;
-export default themeSlice.reducer;
+export const { hydrateTheme, toggleTheme, setTheme } = themeSlice.actions
+export default themeSlice.reducer

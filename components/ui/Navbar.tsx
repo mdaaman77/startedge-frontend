@@ -4,9 +4,9 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { 
-  Menu, X, Rocket, User, LogOut, ChevronDown, Bell, Wallet, 
-  LayoutDashboard, Briefcase, DollarSign, Users 
+import {
+  Menu, X, Rocket, User, LogOut, ChevronDown, Bell, Wallet,
+  LayoutDashboard, Briefcase, DollarSign, Users, MessageCircle, Calendar
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { ThemeToggle } from './ThemeToggle'
@@ -14,16 +14,24 @@ import { useGetMyConsultationsQuery } from '@/lib/api/consultation'
 import { useListConsultantsQuery } from '@/lib/api/consultant'
 import { useAppDispatch } from '@/lib/store/hooks'
 import { openWalletSidebar } from '@/lib/store/features/uiSlice'
+import { useGetWalletBalanceQuery } from '@/lib/api/wallet'
+import { formatPrice } from '@/lib/utils/utils'
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isScrolled, setIsScrolled] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const pathname = usePathname()
   const router = useRouter()
   const dispatch = useAppDispatch()
-  const { user, isAuthenticated, logout } = useAuth()
+  const { user, isAuthenticated, isLoading, logout } = useAuth()
+
+  // Fetch wallet balance
+  const { data: walletData } = useGetWalletBalanceQuery(undefined, {
+    skip: !isAuthenticated,
+  })
 
   const { data: consultations } = useGetMyConsultationsQuery({ limit: 5 }, { skip: !isAuthenticated })
   const { data: allConsultants } = useListConsultantsQuery({ limit: 100 }, { skip: !isAuthenticated })
@@ -33,6 +41,10 @@ export function Navbar() {
     .map(c => c.consultant!)
     .filter((c, index, self) => self.findIndex(cc => cc.id === c.id) === index)
     .slice(0, 5)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -71,17 +83,20 @@ export function Navbar() {
     dispatch(openWalletSidebar())
   }
 
+  const isAuthReady = !isLoading && isAuthenticated !== undefined
+  const renderAuthContent = mounted && isAuthReady
+  const walletBalance = walletData?.balance || 0
+
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        isScrolled
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled
           ? 'bg-surface/90 backdrop-blur-xl border-b border-outline-variant/30'
           : 'bg-transparent'
-      }`}
+        }`}
     >
       <nav className="container mx-auto px-4 h-16 flex items-center justify-between">
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 shrink-0">
+        {/* Logo - Left aligned with mr-auto */}
+        <Link href="/" className="flex items-center gap-2 shrink-0 mr-auto">
           <div className="w-8 h-8 bg-primary-container rounded-lg flex items-center justify-center">
             <Rocket className="w-4 h-4 text-on-primary-container" />
           </div>
@@ -92,7 +107,7 @@ export function Navbar() {
         <div className="hidden md:flex items-center gap-3">
           <ThemeToggle />
 
-          {isAuthenticated ? (
+          {renderAuthContent && isAuthenticated ? (
             <>
               {/* Notification Icon */}
               <button className="relative p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-variant transition-colors">
@@ -100,13 +115,16 @@ export function Navbar() {
                 <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full animate-pulse" />
               </button>
 
-              {/* Wallet Icon */}
+              {/* Wallet Icon with Balance */}
               <button
                 onClick={handleWalletClick}
-                className="p-2 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-variant transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-tertiary/10 hover:bg-tertiary/20 border border-tertiary/20 transition-colors"
                 aria-label="Open wallet"
               >
-                <Wallet size={20} />
+                <Wallet size={18} className="text-tertiary" />
+                <span className="text-sm font-semibold text-tertiary">
+                  {formatPrice(walletBalance)}
+                </span>
               </button>
 
               {/* Avatar Dropdown */}
@@ -211,52 +229,10 @@ export function Navbar() {
                       )}
 
                       {/* Divider */}
-                      <div className="border-t border-outline-variant/30" />
-
-                      {/* Recent Consultations */}
-                      <div className="px-4 py-2">
-                        <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
-                          Recent Consultations
-                        </p>
-                      </div>
-                      {consultations?.slice(0, 3).map((c) => (
-                        <Link
-                          key={c.id}
-                          href={`/client/consultations/${c.id}`}
-                          onClick={() => setIsDropdownOpen(false)}
-                          className="flex items-center gap-3 px-4 py-2 text-sm text-on-surface hover:bg-surface-variant transition-colors w-full text-left"
-                        >
-                          <div className="w-6 h-6 rounded-full bg-surface-variant flex items-center justify-center overflow-hidden">
-                            {c.consultant?.avatar_url ? (
-                              <img
-                                src={c.consultant.avatar_url}
-                                alt={c.consultant.first_name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <User className="w-3 h-3 text-on-surface-variant" />
-                            )}
-                          </div>
-                          <span className="truncate">
-                            {c.consultant?.first_name} {c.consultant?.last_name}
-                          </span>
-                          <span className="ml-auto text-xs text-on-surface-variant">
-                            {new Date(c.created_at).toLocaleDateString()}
-                          </span>
-                        </Link>
-                      ))}
-                      <Link
-                        href="/client/consultations"
-                        onClick={() => setIsDropdownOpen(false)}
-                        className="flex items-center justify-center px-4 py-2 text-xs text-primary hover:bg-surface-variant transition-colors w-full text-center"
-                      >
-                        View All Consultations →
-                      </Link>
-
                       {/* Divider */}
                       <div className="border-t border-outline-variant/30" />
 
-                      {/* Recent Consultants */}
+                      {/* Recent Consultants - WhatsApp style */}
                       <div className="px-4 py-2">
                         <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
                           Recent Consultants
@@ -265,7 +241,7 @@ export function Navbar() {
                       {recentConsultants?.slice(0, 3).map((c) => (
                         <Link
                           key={c.id}
-                          href={`/client/consultants/${c.id}`}
+                          href={`/client/recent-consultants`}
                           onClick={() => setIsDropdownOpen(false)}
                           className="flex items-center gap-3 px-4 py-2 text-sm text-on-surface hover:bg-surface-variant transition-colors w-full text-left"
                         >
@@ -289,11 +265,30 @@ export function Navbar() {
                         </Link>
                       ))}
                       <Link
-                        href="/client/consultants"
+                        href="/client/recent-consultants"
                         onClick={() => setIsDropdownOpen(false)}
                         className="flex items-center justify-center px-4 py-2 text-xs text-primary hover:bg-surface-variant transition-colors w-full text-center"
                       >
-                        View All Consultants →
+                        <MessageCircle className="w-3 h-3 mr-1" />
+                        View All Recent Consultants →
+                      </Link>
+
+                      {/* Divider */}
+                      <div className="border-t border-outline-variant/30" />
+
+                      {/* All Consultations - Full list with modal */}
+                      <div className="px-4 py-2">
+                        <p className="text-xs font-semibold text-on-surface-variant uppercase tracking-wider">
+                          All Consultations
+                        </p>
+                      </div>
+                      <Link
+                        href="/client/consultations"
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="flex items-center justify-center px-4 py-2 text-xs text-primary hover:bg-surface-variant transition-colors w-full text-center"
+                      >
+                        <Calendar className="w-3 h-3 mr-1" />
+                        View All Consultations →
                       </Link>
 
                       {/* Divider */}
@@ -312,7 +307,7 @@ export function Navbar() {
                 </AnimatePresence>
               </div>
             </>
-          ) : (
+          ) : renderAuthContent && !isAuthenticated ? (
             <>
               <Link href="/login">
                 <button className="text-sm font-medium text-on-surface-variant hover:text-primary transition-colors">
@@ -325,6 +320,11 @@ export function Navbar() {
                 </button>
               </Link>
             </>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="w-20 h-8 bg-surface-container-low rounded-lg animate-pulse" />
+              <div className="w-20 h-8 bg-surface-container-low rounded-lg animate-pulse" />
+            </div>
           )}
         </div>
 
@@ -354,19 +354,35 @@ export function Navbar() {
                 <ThemeToggle />
               </div>
 
-              {isAuthenticated ? (
+              {renderAuthContent && isAuthenticated ? (
                 <>
-                  {/* Client Links - Removed Consultants and Dashboard */}
+                  {/* Client Links */}
                   {user?.role === 'client' && (
-                    <button
-                      onClick={() => {
-                        setIsMobileMenuOpen(false)
-                        router.push('/client/apply-consultant')
-                      }}
-                      className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2 text-left"
-                    >
-                      Apply as Consultant
-                    </button>
+                    <>
+                      <Link
+                        href="/client/consultants"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
+                      >
+                        Recent Consultants
+                      </Link>
+                      <Link
+                        href="/client/consultations/list"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2"
+                      >
+                        All Consultations
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setIsMobileMenuOpen(false)
+                          router.push('/client/apply-consultant')
+                        }}
+                        className="text-sm font-medium text-on-surface hover:text-primary transition-colors py-2 text-left"
+                      >
+                        Apply as Consultant
+                      </button>
+                    </>
                   )}
 
                   {/* Consultant Links */}
@@ -466,7 +482,7 @@ export function Navbar() {
                     Logout
                   </button>
                 </>
-              ) : (
+              ) : renderAuthContent && !isAuthenticated ? (
                 <div className="flex flex-col gap-2 pt-2 border-t border-outline-variant/20">
                   <Link href="/login">
                     <button className="w-full text-sm font-medium text-on-surface-variant hover:text-primary transition-colors py-2">
@@ -478,6 +494,10 @@ export function Navbar() {
                       Sign Up
                     </button>
                   </Link>
+                </div>
+              ) : (
+                <div className="flex justify-center py-4">
+                  <div className="w-20 h-8 bg-surface-container-low rounded-lg animate-pulse" />
                 </div>
               )}
             </div>

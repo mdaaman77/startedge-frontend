@@ -3,27 +3,23 @@
 import { Provider } from 'react-redux'
 import { store } from '@/lib/store/store'
 import { Toaster } from 'react-hot-toast'
-import { ThemeProvider } from 'next-themes'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { hydrateAuth } from '@/lib/store/features/authSlice'
 import { hydrateTheme } from '@/lib/store/features/themeSlice'
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+
   useEffect(() => {
     store.dispatch(hydrateAuth())
     store.dispatch(hydrateTheme())
+    setMounted(true)
   }, [])
 
   return (
     <Provider store={store}>
-      <ThemeProvider 
-        attribute="data-theme" 
-        defaultTheme="dark" 
-        enableSystem={false}
-        enableColorScheme={false}
-        disableTransitionOnChange
-      >
-        {children}
+      {children}
+      {mounted && (
         <Toaster
           position="top-right"
           toastOptions={{
@@ -35,7 +31,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
             },
           }}
         />
-      </ThemeProvider>
+      )}
     </Provider>
   )
 }

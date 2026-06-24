@@ -3,6 +3,9 @@ import { Inter } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import { WalletWrapper } from '@/components/ui/WalletWrapper'
+import { Navbar } from '@/components/ui/Navbar'
+import { Footer } from '@/components/ui/Footer'
+import { ThemeInitializer } from '@/components/ui/ThemeInitializer'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -20,7 +23,10 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className} suppressHydrationWarning>
         <Providers>
-          {children}
+          <ThemeInitializer />
+          <Navbar />
+          <main className="min-h-screen bg-surface">{children}</main>
+          {/* <Footer /> */}
           <WalletWrapper />
         </Providers>
       </body>
