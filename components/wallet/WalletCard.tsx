@@ -27,7 +27,7 @@ export function WalletCard({ balance }: WalletCardProps) {
             <p className="text-2xl font-bold text-on-surface">{formatPrice(balance)}</p>
           </div>
         </div>
-        <Link href="/client/wallet">
+        <Link href="/wallet">
           <button className="flex items-center gap-2 px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-sm font-medium rounded-lg transition-all duration-200">
             Go to Wallet
             <ArrowRight className="w-4 h-4" />

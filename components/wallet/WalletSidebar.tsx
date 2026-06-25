@@ -47,7 +47,6 @@ export function WalletSidebar({ isOpen, onClose, balance, transactions }: Wallet
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed right-0 top-0 bottom-0 w-full sm:w-[420px] bg-surface-container border-l border-outline-variant/30 z-50 flex flex-col"
           >
-            {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-outline-variant/30">
               <h2 className="text-xl font-bold text-on-surface flex items-center gap-2">
                 <Wallet className="w-5 h-5 text-primary" />
@@ -61,14 +60,13 @@ export function WalletSidebar({ isOpen, onClose, balance, transactions }: Wallet
               </button>
             </div>
 
-            {/* Balance */}
             <div className="p-6 bg-surface-container-low border-b border-outline-variant/30">
               <p className="text-sm text-on-surface-variant">Current Balance</p>
               <p className="text-3xl font-bold text-on-surface">{formatPrice(balance)}</p>
               <button
                 onClick={() => {
                   onClose()
-                  window.location.href = '/client/wallet'
+                  window.location.href = '/wallet'
                 }}
                 className="mt-2 text-sm text-primary hover:underline"
               >
@@ -76,7 +74,6 @@ export function WalletSidebar({ isOpen, onClose, balance, transactions }: Wallet
               </button>
             </div>
 
-            {/* Filter */}
             <div className="flex items-center gap-2 p-4 border-b border-outline-variant/30">
               <Filter size={16} className="text-on-surface-variant" />
               <button
@@ -111,7 +108,6 @@ export function WalletSidebar({ isOpen, onClose, balance, transactions }: Wallet
               </button>
             </div>
 
-            {/* Transactions List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {filteredTransactions.length === 0 ? (
                 <div className="text-center py-8 text-on-surface-variant">

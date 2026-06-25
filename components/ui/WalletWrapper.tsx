@@ -2,7 +2,7 @@
 
 import { useAppSelector, useAppDispatch } from '@/lib/store/hooks'
 import { closeWalletSidebar } from '@/lib/store/features/uiSlice'
-import { WalletSidebar } from '@/components/client/WalletSidebar'
+import { WalletSidebar } from '@/components/wallet/WalletSidebar'
 import { useGetWalletBalanceQuery, useGetWalletTransactionsQuery } from '@/lib/api/wallet'
 import { useAuth } from '@/hooks/useAuth'
 

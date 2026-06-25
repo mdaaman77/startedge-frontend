@@ -1,35 +1,238 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Star, Zap, Calendar, Clock, User, ArrowLeft, MessageCircle } from 'lucide-react'
+import { Star, Clock, User, ArrowLeft, Calendar } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useGetConsultantQuery } from '@/lib/api/consultant'
+import { useRequestConsultationMutation, useGetMyConsultationsQuery } from '@/lib/api/consultation'
+import { useGetWalletBalanceQuery } from '@/lib/api/wallet'
 import { Navbar } from '@/components/ui/Navbar'
 import { Footer } from '@/components/ui/Footer'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { BookingCard } from '@/components/consultations/BookingCard'
+import { ConfirmationModal } from '@/components/consultations/ConfirmationModal'
+import { TimerBanner } from '@/components/consultations/TimerBanner'
 import { formatPrice } from '@/lib/utils/utils'
+import toast from 'react-hot-toast'
+
+type ConsultationStatus = 'idle' | 'requested' | 'accepted' | 'rejected' | 'expired'
 
 export default function ConsultantProfilePage() {
   const router = useRouter()
   const params = useParams()
   const consultantId = params.id as string
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
-  const [selectedMinutes, setSelectedMinutes] = useState(15)
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth()
+
+  const [bookingMinutes, setBookingMinutes] = useState(15)
+  const [consultationStatus, setConsultationStatus] = useState<ConsultationStatus>('idle')
+  const [timeLeft, setTimeLeft] = useState(120)
   const [isBooking, setIsBooking] = useState(false)
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false)
+  const [consultationId, setConsultationId] = useState<string | null>(null)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const { data: consultant, isLoading: consultantLoading } = useGetConsultantQuery(
     consultantId,
     { skip: !consultantId }
   )
-{/*
-  // useEffect(() => {
-  //   if (!authLoading && !isAuthenticated) {
-  //     router.push('/register')
-  //   }
-  // }, [authLoading, isAuthenticated,router])
-*/}
+
+  const { data: myConsultations, refetch: refetchConsultations } = useGetMyConsultationsQuery(
+    { limit: 50 },
+    { skip: !isAuthenticated }
+  )
+
+  const { data: walletData, refetch: refetchWallet } = useGetWalletBalanceQuery(undefined, {
+    skip: !isAuthenticated,
+  })
+
+  const [requestConsultation] = useRequestConsultationMutation()
+
+  useEffect(() => {
+    if (myConsultations && consultantId) {
+      const existing = myConsultations.find(
+        c => c.consultant_id === consultantId && c.status === 'requested'
+      )
+      if (existing) {
+        setConsultationStatus('requested')
+        setConsultationId(existing.id)
+        const created = new Date(existing.created_at)
+        const elapsed = Math.floor((Date.now() - created.getTime()) / 1000)
+        const remaining = Math.max(0, 120 - elapsed)
+        setTimeLeft(remaining)
+        if (remaining > 0) {
+          startPolling()
+        } else {
+          setConsultationStatus('expired')
+        }
+      }
+    }
+  }, [myConsultations, consultantId])
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
+  }
+
+  const startPolling = () => {
+    stopPolling()
+
+    if (!isAuthenticated || !consultantId) return
+
+    pollingIntervalRef.current = setInterval(async () => {
+      try {
+        if (isAuthenticated && consultantId) {
+          const result = await refetchConsultations()
+          const consultations = result.data || []
+          const matching = consultations.filter(
+            c => c.consultant_id === consultantId
+          )
+          const found = matching.find(c => c.id === consultationId)
+
+          if (found) {
+            if (found.status === 'accepted') {
+              setConsultationStatus('accepted')
+              stopPolling()
+              toast.success('Consultation accepted!')
+              setTimeout(() => {
+                router.push(`/chat?consultant=${consultantId}`)
+              }, 1500)
+              return
+            }
+            if (found.status === 'rejected') {
+              setConsultationStatus('rejected')
+              stopPolling()
+              toast.error('Consultation rejected by consultant')
+              return
+            }
+          } else {
+            const accepted = matching.find(c => c.status === 'accepted')
+            if (accepted) {
+              setConsultationStatus('accepted')
+              setConsultationId(accepted.id)
+              stopPolling()
+              toast.success('Consultation accepted!')
+              setTimeout(() => {
+                router.push(`/chat?consultant=${consultantId}`)
+              }, 1500)
+              return
+            }
+            const rejected = matching.find(c => c.status === 'rejected')
+            if (rejected) {
+              setConsultationStatus('rejected')
+              setConsultationId(rejected.id)
+              stopPolling()
+              toast.error('Consultation rejected by consultant')
+              return
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Polling error:', error)
+      }
+    }, 3000)
+  }
+
+  useEffect(() => {
+    if (consultationStatus === 'requested' && timeLeft > 0) {
+      const timer = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer)
+            setTimeout(() => {
+              setConsultationStatus('expired')
+              toast.error('Consultation request expired')
+              stopPolling()
+            }, 0)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+      return () => clearInterval(timer)
+    }
+  }, [consultationStatus, timeLeft])
+
+  useEffect(() => {
+    return () => {
+      stopPolling()
+    }
+  }, [])
+
+  const handleBookNow = (minutes: number) => {
+    if (!isAuthenticated) {
+      router.push('/login')
+      return
+    }
+    if (user?.role !== 'client') {
+      toast.error('Only clients can book consultations')
+      return
+    }
+    if (!consultant?.is_online) {
+      toast.error('Consultant is currently offline')
+      return
+    }
+    setBookingMinutes(minutes)
+    setShowConfirmationModal(true)
+  }
+
+  const handleConfirmBooking = async (reason: string) => {
+    if (!consultantId) return
+
+    setIsBooking(true)
+    setShowConfirmationModal(false)
+
+    try {
+      const result = await requestConsultation({
+        consultant_id: consultantId,
+        requested_minutes: bookingMinutes,
+      }).unwrap()
+
+      setConsultationId(result.id)
+      setConsultationStatus('requested')
+      setTimeLeft(120)
+      toast.success('Consultation requested! Waiting for consultant to accept.')
+
+      await refetchWallet()
+      await refetchConsultations()
+      startPolling()
+
+    } catch (error: any) {
+      let message = 'Failed to request consultation'
+      if (error?.data?.detail) {
+        if (typeof error.data.detail === 'string') {
+          message = error.data.detail
+        } else if (Array.isArray(error.data.detail)) {
+          const details = error.data.detail.map((e: any) => e.msg || e.message || e)
+          message = details.join(', ')
+        }
+      } else if (error?.message) {
+        message = error.message
+      }
+      toast.error(message)
+      setConsultationStatus('idle')
+    } finally {
+      setIsBooking(false)
+    }
+  }
+
+  const handleTryAgain = () => {
+    setConsultationStatus('idle')
+    setTimeLeft(120)
+    setConsultationId(null)
+    stopPolling()
+  }
+
+  const handleDismissBanner = () => {
+    setConsultationStatus('idle')
+    setTimeLeft(120)
+    setConsultationId(null)
+    stopPolling()
+  }
+
   if (authLoading || consultantLoading) {
     return <LoadingSpinner />
   }
@@ -45,33 +248,48 @@ export default function ConsultantProfilePage() {
     )
   }
 
-  const totalCost = selectedMinutes * consultant.per_minute_fee
-
-  const handleStartConsultation = async () => {
-    setIsBooking(true)
-    try {
-      // API call will be made here
-      // await requestConsultation({ consultant_id: consultantId, requested_minutes: selectedMinutes })
-      // Redirect to chat or consultation page
-      router.push(`/client/consultations`)
-    } catch (error) {
-      console.error(error)
-    } finally {
-      setIsBooking(false)
-    }
-  }
+  const isClient = user?.role === 'client'
+  const walletBalance = walletData?.balance || 0
+  const showTimerBanner = consultationStatus === 'requested' || 
+                          consultationStatus === 'accepted' || 
+                          consultationStatus === 'rejected' || 
+                          consultationStatus === 'expired'
 
   return (
     <div className="min-h-screen bg-surface">
       <Navbar />
 
-      <main className="container mx-auto px-4 pt-24 pb-12">
+      {consultationStatus === 'requested' && (
+        <TimerBanner
+          timeLeft={timeLeft}
+          status="waiting"
+          consultantName={`${consultant.first_name} ${consultant.last_name}`}
+        />
+      )}
+
+      {consultationStatus === 'accepted' && (
+        <TimerBanner
+          timeLeft={0}
+          status="accepted"
+          consultantName={`${consultant.first_name} ${consultant.last_name}`}
+        />
+      )}
+
+      {(consultationStatus === 'rejected' || consultationStatus === 'expired') && (
+        <TimerBanner
+          timeLeft={0}
+          status={consultationStatus}
+          consultantName={`${consultant.first_name} ${consultant.last_name}`}
+          onClose={handleDismissBanner}
+        />
+      )}
+
+      <main className={`container mx-auto px-4 ${showTimerBanner ? 'pt-32' : 'pt-24'} pb-12`}>
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Back Button */}
           <button
             onClick={() => router.back()}
             className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors mb-6"
@@ -80,9 +298,7 @@ export default function ConsultantProfilePage() {
             Back
           </button>
 
-          {/* Consultant Profile */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Profile Info - 2/3 */}
             <div className="lg:col-span-2">
               <div className="glass-card p-6 rounded-xl">
                 <div className="flex items-start gap-6">
@@ -104,7 +320,7 @@ export default function ConsultantProfilePage() {
                     <p className="text-on-surface-variant">
                       {consultant.specialization_name || consultant.category || 'Expert'}
                     </p>
-                    <div className="flex items-center gap-4 mt-2">
+                    <div className="flex items-center gap-4 mt-2 flex-wrap">
                       <div className="flex items-center gap-1">
                         <Star className="w-4 h-4 fill-yellow-500 text-yellow-500" />
                         <span className="font-semibold">
@@ -120,6 +336,12 @@ export default function ConsultantProfilePage() {
                           {consultant.experience_years || 0} years experience
                         </span>
                       </div>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4 text-primary" />
+                        <span className="text-sm text-on-surface-variant">
+                          {formatPrice(consultant.per_minute_fee)}/min
+                        </span>
+                      </div>
                     </div>
                     <div className="mt-3">
                       <span
@@ -131,83 +353,46 @@ export default function ConsultantProfilePage() {
                       </span>
                     </div>
                     {consultant.bio && (
-                      <p className="mt-4 text-sm text-on-surface-variant">{consultant.bio}</p>
+                      <p className="mt-4 text-sm text-on-surface-variant leading-relaxed">
+                        {consultant.bio}
+                      </p>
                     )}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Booking Card - 1/3 */}
             <div>
-              <div className="glass-card p-6 rounded-xl sticky top-24">
-                <h3 className="font-bold text-on-surface mb-4">Start Consultation</h3>
-
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm text-on-surface-variant">Rate</span>
-                  <span className="font-bold text-on-surface">
-                    {formatPrice(consultant.per_minute_fee)}/min
-                  </span>
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-sm text-on-surface-variant mb-2">
-                    Minutes
-                  </label>
-                  <div className="flex gap-2 flex-wrap">
-                    {[15, 30, 45, 60].map((mins) => (
-                      <button
-                        key={mins}
-                        onClick={() => setSelectedMinutes(mins)}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                          selectedMinutes === mins
-                            ? 'bg-primary text-on-primary'
-                            : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-variant'
-                        }`}
-                      >
-                        {mins}m
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between py-3 border-t border-outline-variant/30">
-                  <span className="text-sm font-semibold text-on-surface">Total</span>
-                  <span className="text-xl font-bold text-primary">
-                    {formatPrice(totalCost)}
-                  </span>
-                </div>
-
-                <button
-                  onClick={handleStartConsultation}
-                  disabled={!consultant.is_online || isBooking}
-                  className={`w-full py-3 rounded-lg font-semibold transition-all ${
-                    consultant.is_online && !isBooking
-                      ? 'bg-primary text-on-primary hover:opacity-90'
-                      : 'bg-surface-variant text-on-surface-variant cursor-not-allowed opacity-60'
-                  }`}
-                >
-                  {isBooking ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
-                  ) : consultant.is_online ? (
-                    'Start Consultation'
-                  ) : (
-                    'Offline'
-                  )}
-                </button>
-
-                {!consultant.is_online && (
-                  <p className="text-xs text-center text-on-surface-variant mt-2">
-                    Consultant is currently offline
-                  </p>
-                )}
-              </div>
+              <BookingCard
+                consultantName={`${consultant.first_name} ${consultant.last_name}`}
+                perMinuteFee={consultant.per_minute_fee}
+                isOnline={consultant.is_online}
+                isClient={isClient}
+                isConsultationRequested={consultationStatus === 'requested'}
+                isConsultationActive={consultationStatus === 'accepted'}
+                walletBalance={walletBalance}
+                onBookNow={handleBookNow}
+                onTryAgain={handleTryAgain}
+                status={consultationStatus}
+              />
             </div>
           </div>
         </motion.div>
       </main>
 
       <Footer />
+
+      <ConfirmationModal
+        isOpen={showConfirmationModal}
+        onClose={() => setShowConfirmationModal(false)}
+        onConfirm={handleConfirmBooking}
+        consultantName={`${consultant.first_name} ${consultant.last_name}`}
+        consultantAvatar={consultant.avatar_url}
+        duration={bookingMinutes}
+        totalCost={bookingMinutes * consultant.per_minute_fee}
+        perMinuteFee={consultant.per_minute_fee}
+        isLoading={isBooking}
+      />
     </div>
   )
 }

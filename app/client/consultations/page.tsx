@@ -14,7 +14,6 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Button } from '@/components/ui/Button'
 import { formatDate, formatTime, formatPrice } from '@/lib/utils/utils'
 
-// --- Consultation Status Badge ---
 function StatusBadge({ status }: { status: string }) {
   const statusConfig: Record<string, { color: string; label: string }> = {
     requested: { color: 'bg-yellow-500/20 text-yellow-500', label: 'Requested' },
@@ -36,7 +35,6 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-// --- Consultation Detail Modal ---
 function ConsultationDetailModal({
   consultation,
   isOpen,
@@ -53,7 +51,6 @@ function ConsultationDetailModal({
   if (!consultation) return null
 
   const consultant = consultantMap[consultation.consultant_id]
-  const isClient = true // Since we're viewing as client
 
   return (
     <AnimatePresence>
@@ -210,7 +207,6 @@ function ConsultationDetailModal({
   )
 }
 
-// --- Main Page ---
 export default function ConsultationsPage() {
   const router = useRouter()
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
@@ -219,23 +215,18 @@ export default function ConsultationsPage() {
   const [selectedConsultation, setSelectedConsultation] = useState<any>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // Fetch consultations
-  const { data: consultations, isLoading: consultationsLoading, error } = useGetMyConsultationsQuery({
+  const { data: consultations, isLoading: consultationsLoading } = useGetMyConsultationsQuery({
     limit: 100,
   })
 
-  // Fetch all consultants to map consultant_id to consultant details
   const { data: allConsultants, isLoading: consultantsLoading } = useListConsultantsQuery({
     limit: 100,
   })
 
-  // Create a map of consultant_id -> consultant
   const consultantMap: Record<string, any> = {}
   allConsultants?.forEach((c: any) => {
     consultantMap[c.user_id] = c
   })
-
- 
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -266,22 +257,13 @@ export default function ConsultationsPage() {
 
   return (
     <div className="container mx-auto px-4 pt-24 pb-12">
-      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl font-bold text-on-surface">All Consultations</h1>
           <p className="text-on-surface-variant">View all your consultation history</p>
         </div>
-        {/* <Button
-          onClick={() => router.push('/client/recent-consultants')}
-          variant="outline"
-        >
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Recent
-        </Button> */}
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
@@ -315,7 +297,6 @@ export default function ConsultationsPage() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="glass-card rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -386,7 +367,6 @@ export default function ConsultationsPage() {
         </div>
       </div>
 
-      {/* Consultation Detail Modal */}
       <ConsultationDetailModal
         consultation={selectedConsultation}
         isOpen={isModalOpen}

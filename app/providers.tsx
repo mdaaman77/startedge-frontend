@@ -29,6 +29,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
               color: 'var(--color-on-surface)',
               border: '1px solid var(--color-outline-variant)',
             },
+            error: {
+              style: {
+                background: 'var(--color-error-container)',
+                color: 'var(--color-on-error-container)',
+              },
+            },
           }}
         />
       )}

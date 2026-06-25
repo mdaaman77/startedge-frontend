@@ -12,14 +12,12 @@ import { useUpdateProfileMutation, useChangePasswordMutation } from '@/lib/api/u
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 
-// --- Profile Schema ---
 const profileSchema = z.object({
   first_name: z.string().min(1, 'First name is required'),
   last_name: z.string().min(1, 'Last name is required'),
   phone: z.string().optional().nullable(),
 })
 
-// --- Password Schema ---
 const passwordSchema = z
   .object({
     old_password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -42,9 +40,10 @@ type PasswordFormData = z.infer<typeof passwordSchema>
 interface EditProfileModalProps {
   isOpen: boolean
   onClose: () => void
+  onProfileUpdate?: () => void
 }
 
-export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
+export function EditProfileModal({ isOpen, onClose, onProfileUpdate }: EditProfileModalProps) {
   const { user, refetch } = useAuth()
   const [showOldPassword, setShowOldPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
@@ -54,13 +53,11 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
   const [updateProfile, { isLoading: isUpdatingProfile }] = useUpdateProfileMutation()
   const [changePassword, { isLoading: isChangingPassword }] = useChangePasswordMutation()
 
-  // --- Profile Form ---
   const {
     register: registerProfile,
     handleSubmit: handleProfileSubmit,
     formState: { errors: profileErrors },
     reset: resetProfile,
-    watch: watchProfile,
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -70,7 +67,6 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
     },
   })
 
-  // --- Password Form ---
   const {
     register: registerPassword,
     handleSubmit: handlePasswordSubmit,
@@ -86,10 +82,6 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
     },
   })
 
-  // Watch password fields to check if they're filled
-  const passwordValues = watchPassword()
-  const hasPasswordChanges = passwordValues.old_password || passwordValues.new_password || passwordValues.confirm_password
-
   useEffect(() => {
     if (user) {
       resetProfile({
@@ -100,10 +92,8 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
     }
   }, [user, resetProfile])
 
-  // Helper function to extract error message
   const getErrorMessage = (error: any): string => {
     if (typeof error === 'string') return error
-    
     if (error?.data?.detail) {
       if (Array.isArray(error.data.detail)) {
         return error.data.detail.map((e: any) => e.msg || e.message).join(', ')
@@ -112,87 +102,70 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
         return error.data.detail
       }
     }
-    
     if (error?.data?.message) return error.data.message
     if (error?.error) return error.error
-    
     return 'An error occurred. Please try again.'
   }
 
-  // --- Combined Submit Handler ---
-  const onSubmit = async (data: {
-    profile: ProfileFormData
-    password: PasswordFormData
-  }) => {
-    const { profile, password } = data
-    
+  const onSubmit = async () => {
+    const profileData = {
+      first_name: registerProfile._formValues.first_name,
+      last_name: registerProfile._formValues.last_name,
+      phone: registerProfile._formValues.phone,
+    }
+
+    const passwordData = watchPassword()
+
+    const profileChanges: Record<string, string | null> = {}
+    if (profileData.first_name && profileData.first_name !== user?.first_name) {
+      profileChanges.first_name = profileData.first_name
+    }
+    if (profileData.last_name && profileData.last_name !== user?.last_name) {
+      profileChanges.last_name = profileData.last_name
+    }
+    if (profileData.phone !== undefined && profileData.phone !== user?.phone) {
+      profileChanges.phone = profileData.phone?.trim() === '' ? null : profileData.phone
+    }
+
+    const hasProfileChanges = Object.keys(profileChanges).length > 0
+    const hasPasswordChanges = !!(
+      passwordData.old_password &&
+      passwordData.new_password &&
+      passwordData.confirm_password
+    )
+
+    if (!hasProfileChanges && !hasPasswordChanges) {
+      toast('No changes to save', { icon: 'ℹ️' })
+      onClose()
+      return
+    }
+
     setIsSubmitting(true)
-    
+
     try {
-      // Step 1: Check if profile has changes
-      const profileData: Record<string, string | null> = {}
-      
-      if (profile.first_name && profile.first_name !== user?.first_name) {
-        profileData.first_name = profile.first_name
-      }
-      if (profile.last_name && profile.last_name !== user?.last_name) {
-        profileData.last_name = profile.last_name
-      }
-      if (profile.phone !== undefined && profile.phone !== user?.phone) {
-        profileData.phone = profile.phone?.trim() === '' ? null : profile.phone
-      }
-      
-      const hasProfileChanges = Object.keys(profileData).length > 0
-      
-      // Step 2: Check if password has changes
-      const hasPasswordChanges = password.old_password && password.new_password && password.confirm_password
-      
-      // If no changes, show message and close
-      if (!hasProfileChanges && !hasPasswordChanges) {
-        toast('No changes to save', { icon: 'ℹ️' })
-        onClose()
-        return
-      }
-      
-      // Step 3: Update profile if changed
       if (hasProfileChanges) {
-        await updateProfile(profileData).unwrap()
-        console.log('✅ Profile updated')
+        await updateProfile(profileChanges).unwrap()
       }
-      
-      // Step 4: Update password if changed
+
       if (hasPasswordChanges) {
         await changePassword({
-          old_password: password.old_password,
-          new_password: password.new_password,
-          confirm_password: password.confirm_password,
+          old_password: passwordData.old_password,
+          new_password: passwordData.new_password,
+          confirm_password: passwordData.confirm_password,
         }).unwrap()
-        console.log('✅ Password updated')
       }
-      
-      // Step 5: Success
+
       toast.success('Profile updated successfully')
       await refetch()
       resetPassword()
+      if (onProfileUpdate) onProfileUpdate()
       onClose()
-      
     } catch (error: any) {
       const errorMessage = getErrorMessage(error)
       toast.error(errorMessage)
     } finally {
       setIsSubmitting(false)
     }
-  }
-
-  // --- Individual Submit Handlers (for backward compatibility) ---
-  const onProfileUpdate = async (data: ProfileFormData) => {
-    // This is now handled by the combined submit
-    onSubmit({ profile: data, password: watchPassword() })
-  }
-
-  const onPasswordChange = async (data: PasswordFormData) => {
-    // This is now handled by the combined submit
-    onSubmit({ profile: watchProfile(), password: data })
   }
 
   const isLoading = isUpdatingProfile || isChangingPassword || isSubmitting
@@ -217,7 +190,6 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
             className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
           >
             <div className="bg-surface-container rounded-2xl max-w-md w-full max-h-[90vh] overflow-y-auto pointer-events-auto border border-outline-variant/30 shadow-2xl">
-              {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-outline-variant/30">
                 <h2 className="text-xl font-bold text-on-surface">Edit Profile</h2>
                 <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-variant transition-colors">
@@ -226,8 +198,7 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
               </div>
 
               <div className="p-6 space-y-6">
-                {/* Profile Form - Now submits everything together */}
-                <form onSubmit={handleProfileSubmit(onProfileUpdate)} className="space-y-4">
+                <form className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-2">
@@ -280,7 +251,6 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
 
                   <div className="border-t border-outline-variant/30 my-4" />
 
-                  {/* Change Password Section - Integrated */}
                   <h3 className="text-sm font-semibold text-on-surface">Change Password</h3>
 
                   <div>
@@ -352,7 +322,13 @@ export function EditProfileModal({ isOpen, onClose }: EditProfileModalProps) {
                     </div>
                   </div>
 
-                  <Button type="submit" variant="gradient" disabled={isLoading} className="w-full">
+                  <Button
+                    type="button"
+                    onClick={onSubmit}
+                    variant="gradient"
+                    disabled={isLoading}
+                    className="w-full"
+                  >
                     {isLoading ? 'Saving...' : 'Save All Changes'}
                   </Button>
                 </form>

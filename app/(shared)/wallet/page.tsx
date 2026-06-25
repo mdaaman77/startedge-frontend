@@ -14,7 +14,7 @@ import {
   useGetWalletTransactionsQuery,
   useAddMoneyMutation,
 } from '@/lib/api/wallet'
-import { AddMoneySuccessModal } from '@/components/client/AddMoneySuccessModal'
+import { AddMoneySuccessModal } from '@/components/wallet/AddMoneySuccessModal'
 import { formatPrice, formatDate } from '@/lib/utils/utils'
 
 const quickAmounts = [100, 200, 500, 1000]
@@ -72,19 +72,14 @@ export default function WalletPage() {
       setLastAddedAmount(result.amount)
       setLastNewBalance(result.new_balance)
 
-      // Refetch balance and transactions
       await Promise.all([refetchBalance(), refetchTransactions()])
 
-      // Show success modal
       setShowSuccessModal(true)
 
-      // Reset form
       setSelectedAmount(null)
       setCustomAmount('')
 
     } catch (error: unknown) {
-      console.error('Add money error:', error)
-
       let errorMessage = 'Failed to add money. Please try again.'
 
       if (error && typeof error === 'object' && 'data' in error) {
@@ -120,26 +115,22 @@ export default function WalletPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Back Button */}
           <button
-            onClick={() => router.push('/client/dashboard')}
+            onClick={() => router.back()}
             className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors mb-6"
           >
             <ArrowLeft size={20} />
-            Back to Dashboard
+            Back
           </button>
 
-          {/* Balance */}
           <div className="glass-card p-6 rounded-xl mb-8">
             <p className="text-sm text-on-surface-variant">Current Balance</p>
             <p className="text-4xl font-bold text-on-surface">{formatPrice(balance)}</p>
           </div>
 
-          {/* Add Money Section */}
           <div className="glass-card p-6 rounded-xl mb-8">
             <h2 className="text-xl font-bold text-on-surface mb-4">Add Money</h2>
 
-            {/* Quick Amounts */}
             <div className="grid grid-cols-4 gap-3 mb-4">
               {quickAmounts.map((amount) => (
                 <button
@@ -159,7 +150,6 @@ export default function WalletPage() {
               ))}
             </div>
 
-            {/* Custom Amount */}
             <div className="flex gap-3">
               <div className="flex-1 relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant font-medium">
@@ -200,7 +190,6 @@ export default function WalletPage() {
             </p>
           </div>
 
-          {/* Last 7 Transactions */}
           <div>
             <h3 className="text-lg font-bold text-on-surface mb-4">Recent Transactions</h3>
             {transactions.length === 0 ? (
@@ -240,7 +229,6 @@ export default function WalletPage() {
 
       <Footer />
 
-      {/* Success Modal */}
       <AddMoneySuccessModal
         isOpen={showSuccessModal}
         onClose={handleCloseSuccessModal}

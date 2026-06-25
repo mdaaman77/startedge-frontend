@@ -59,7 +59,19 @@ export interface ReviewAndIssueRequest {
   issue_reason?: string
 }
 
+export interface RecentClient {
+  id: string
+  first_name: string
+  last_name: string
+  avatar_url: string | null
+  last_message: string | null
+  last_message_time: string | null
+  has_ongoing_consultation: boolean
+  ongoing_consultation_id: string | null
+}
+
 export const consultationApi = api.injectEndpoints({
+  overrideExisting: true,
   endpoints: (builder) => ({
     getMyConsultations: builder.query<
       Consultation[],
@@ -84,18 +96,57 @@ export const consultationApi = api.injectEndpoints({
       invalidatesTags: ['Consultation'],
     }),
 
+    acceptConsultation: builder.mutation<Consultation, string>({
+      query: (id) => ({
+        url: `/consultations/${id}/accept`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Consultation'],
+    }),
 
+    rejectConsultation: builder.mutation<Consultation, string>({
+      query: (id) => ({
+        url: `/consultations/${id}/reject`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Consultation'],
+    }),
+
+    extendConsultation: builder.mutation<Consultation, { id: string; extra_minutes: number }>({
+      query: ({ id, extra_minutes }) => ({
+        url: `/consultations/${id}/extend`,
+        method: 'POST',
+        body: { extra_minutes },
+      }),
+      invalidatesTags: ['Consultation'],
+    }),
+
+    completeConsultation: builder.mutation<Consultation, { id: string; actual_minutes?: number }>({
+      query: ({ id, actual_minutes }) => ({
+        url: `/consultations/${id}/complete`,
+        method: 'POST',
+        body: { actual_minutes },
+      }),
+      invalidatesTags: ['Consultation'],
+    }),
 
     getRecentConsultants: builder.query<any[], void>({
-  query: () => {
-    console.log('🔵 Calling GET /consultations/recent-consultants')
-    return '/consultations/recent-consultants'
-  },
-  providesTags: ['Consultant'],
-}),
+      query: () => '/consultations/recent-consultants',
+      providesTags: ['Consultant'],
+    }),
+
+    getRecentClients: builder.query<RecentClient[], void>({
+      query: () => '/consultations/recent-clients',
+      providesTags: ['Consultant'],
+    }),
 
     getChatHistory: builder.query<any[], string>({
       query: (consultantId) => `/consultations/${consultantId}/chat-history`,
+      providesTags: ['Consultation'],
+    }),
+
+    getIncomingRequests: builder.query<Consultation[], void>({
+      query: () => '/consultations/incoming',
       providesTags: ['Consultation'],
     }),
   }),
@@ -104,6 +155,12 @@ export const consultationApi = api.injectEndpoints({
 export const {
   useGetMyConsultationsQuery,
   useRequestConsultationMutation,
+  useAcceptConsultationMutation,
+  useRejectConsultationMutation,
+  useExtendConsultationMutation,
+  useCompleteConsultationMutation,
   useGetRecentConsultantsQuery,
+  useGetRecentClientsQuery,
   useGetChatHistoryQuery,
+  useGetIncomingRequestsQuery,
 } = consultationApi

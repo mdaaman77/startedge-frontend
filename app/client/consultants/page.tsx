@@ -9,9 +9,8 @@ import { useListConsultantsQuery } from '@/lib/api/consultant'
 import { useAuth } from '@/hooks/useAuth'
 import { Navbar } from '@/components/ui/Navbar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { DashboardSidebar } from '@/components/client/DashboardSidebar'
-import { WalletSidebar } from '@/components/client/WalletSidebar'
-import { EditProfileModal } from '@/components/client/EditProfileModal'
+import { DashboardSidebar } from '@/components/common/DashboardSidebar'
+import { WalletSidebar } from '@/components/wallet/WalletSidebar'
 import { formatPrice } from '@/lib/utils/utils'
 
 type Consultant = {
@@ -44,7 +43,6 @@ export default function ConsultantsPage() {
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState(sortOptions[0])
   const [isWalletOpen, setIsWalletOpen] = useState(false)
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
 
   const today = useMemo(() => {
     return new Intl.DateTimeFormat('en-US', {
@@ -53,12 +51,6 @@ export default function ConsultantsPage() {
       month: 'long',
       day: 'numeric',
     }).format(new Date())
-  }, [])
-
-  useEffect(() => {
-    const handleOpenProfile = () => setIsProfileModalOpen(true)
-    document.addEventListener('openEditProfile', handleOpenProfile)
-    return () => document.removeEventListener('openEditProfile', handleOpenProfile)
   }, [])
 
   const { data, isLoading } = useListConsultantsQuery({
@@ -155,7 +147,6 @@ export default function ConsultantsPage() {
             )}
           </motion.div>
 
-          {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
@@ -183,7 +174,6 @@ export default function ConsultantsPage() {
             </div>
           </div>
 
-          {/* Results */}
           {processedConsultants.length === 0 ? (
             <div className="text-center py-12 text-on-surface-variant">
               No consultants found
@@ -283,11 +273,6 @@ export default function ConsultantsPage() {
         onClose={() => setIsWalletOpen(false)}
         balance={14250}
         transactions={[]}
-      />
-
-      <EditProfileModal
-        isOpen={isProfileModalOpen}
-        onClose={() => setIsProfileModalOpen(false)}
       />
     </div>
   )

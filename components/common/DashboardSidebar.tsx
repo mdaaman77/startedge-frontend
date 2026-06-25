@@ -4,7 +4,8 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { LayoutDashboard, Wallet, Calendar, Users, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Wallet, Calendar, Users, Menu, X, User as UserIcon } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 interface DashboardSidebarProps {
   onWalletClick: () => void
@@ -12,20 +13,33 @@ interface DashboardSidebarProps {
 
 export function DashboardSidebar({ onWalletClick }: DashboardSidebarProps) {
   const pathname = usePathname()
+  const { user } = useAuth()
   const [isMobileOpen, setIsMobileOpen] = useState(false)
 
-  const navItems = [
+  const isClient = user?.role === 'client'
+  const isConsultant = user?.role === 'consultant'
+
+  const clientNavItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/client/dashboard' },
     { name: 'Wallet', icon: Wallet, onClick: onWalletClick },
     { name: 'Consultations', icon: Calendar, href: '/client/consultations' },
     { name: 'Consultants', icon: Users, href: '/client/consultants' },
   ]
 
+  const consultantNavItems = [
+    { name: 'Dashboard', icon: LayoutDashboard, href: '/consultant/dashboard' },
+    { name: 'Wallet', icon: Wallet, onClick: onWalletClick },
+    { name: 'Consultations', icon: Calendar, href: '/consultant/consultations' },
+    { name: 'Clients', icon: Users, href: '/consultant/clients' },
+    { name: 'Profile', icon: UserIcon, href: '/consultant/profile' },
+  ]
+
+  const navItems = isClient ? clientNavItems : isConsultant ? consultantNavItems : []
+
   const isActive = (href: string) => pathname === href
 
   return (
     <>
-      {/* Mobile Toggle */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         className="lg:hidden fixed bottom-6 left-6 z-40 p-3 bg-surface-container rounded-xl border border-outline-variant/30 shadow-xl"
@@ -33,7 +47,6 @@ export function DashboardSidebar({ onWalletClick }: DashboardSidebarProps) {
         {isMobileOpen ? <X size={20} /> : <Menu size={20} />}
       </button>
 
-      {/* Sidebar */}
       <motion.aside
         initial={{ x: -280 }}
         animate={{ x: isMobileOpen ? 0 : -280 }}
@@ -75,7 +88,6 @@ export function DashboardSidebar({ onWalletClick }: DashboardSidebarProps) {
         </nav>
       </motion.aside>
 
-      {/* Overlay */}
       {isMobileOpen && (
         <div className="fixed inset-0 bg-black/50 z-20 lg:hidden" onClick={() => setIsMobileOpen(false)} />
       )}

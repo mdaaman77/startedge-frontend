@@ -1,7 +1,7 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { CheckCircle, X } from 'lucide-react'
+import { CheckCircle } from 'lucide-react'
 import { formatPrice } from '@/lib/utils/utils'
 
 interface AddMoneySuccessModalProps {
@@ -21,7 +21,6 @@ export function AddMoneySuccessModal({
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -30,7 +29,6 @@ export function AddMoneySuccessModal({
             onClick={onClose}
           />
 
-          {/* Modal */}
           <motion.div
             initial={{ opacity: 0, scale: 0.85, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -39,9 +37,7 @@ export function AddMoneySuccessModal({
             className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
           >
             <div className="bg-surface-container rounded-3xl max-w-md w-full pointer-events-auto border border-outline-variant/30 shadow-2xl overflow-hidden">
-              {/* Success Animation */}
               <div className="relative pt-12 pb-6 px-6 text-center">
-                {/* Animated Checkmark */}
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
@@ -66,7 +62,6 @@ export function AddMoneySuccessModal({
                   </motion.div>
                 </motion.div>
 
-                {/* Title */}
                 <motion.h3
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -76,7 +71,6 @@ export function AddMoneySuccessModal({
                   Money Added!
                 </motion.h3>
 
-                {/* Amount */}
                 <motion.p
                   initial={{ opacity: 0, scale: 0.8 }}
                   animate={{ opacity: 1, scale: 1 }}
@@ -86,7 +80,6 @@ export function AddMoneySuccessModal({
                   {formatPrice(amount)}
                 </motion.p>
 
-                {/* New Balance */}
                 <motion.p
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -99,7 +92,6 @@ export function AddMoneySuccessModal({
                   </span>
                 </motion.p>
 
-                {/* Decorative circles */}
                 <motion.div
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: 1, opacity: 0.6 }}
@@ -114,7 +106,6 @@ export function AddMoneySuccessModal({
                 />
               </div>
 
-              {/* Continue Button */}
               <div className="px-6 pb-6 pt-2">
                 <motion.button
                   initial={{ opacity: 0, y: 10 }}
