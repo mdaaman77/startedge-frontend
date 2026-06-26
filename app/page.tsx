@@ -7,6 +7,7 @@ import { Users, Clock } from 'lucide-react'
 import { Navbar } from '@/components/ui/Navbar'
 import { Footer } from '@/components/ui/Footer'
 import { useListConsultantsQuery } from '@/lib/api/consultant'
+import { useGetMyConsultationsQuery } from '@/lib/api/consultation'
 import { useAuth } from '@/hooks/useAuth'
 import { ConsultantCard } from '@/components/consultants/ConsultantCard'
 import { ConsultantSearchFilters } from '@/components/consultants/ConsultantSearchFilters'
@@ -46,10 +47,28 @@ export default function Home() {
     is_online: true,
   })
 
+  // Fetch user's consultations to filter out consultants they already have active/pending with
+  const { data: myConsultations } = useGetMyConsultationsQuery(
+    { limit: 100 },
+    { skip: !isAuthenticated }
+  )
+
+  // Create a set of consultant IDs that the user has pending/active consultations with
+  const blockedConsultantIds = useMemo(() => {
+    if (!myConsultations || !isAuthenticated) return new Set()
+    return new Set(
+      myConsultations
+        .filter(c => ['requested', 'accepted', 'in_progress'].includes(c.status))
+        .map(c => c.consultant_id)
+    )
+  }, [myConsultations, isAuthenticated])
+
+  // Filter out consultants with existing consultations
   const filteredConsultants = useMemo(() => {
     if (!allConsultants) return []
-    return allConsultants
-  }, [allConsultants])
+    if (!isAuthenticated) return allConsultants
+    return allConsultants.filter(c => !blockedConsultantIds.has(c.user_id))
+  }, [allConsultants, blockedConsultantIds, isAuthenticated])
 
   const handleSearch = useCallback((search: string) => {
     setSearchTerm(search)
@@ -85,7 +104,6 @@ export default function Home() {
 
   const showWelcome = isAuthenticated && user
 
-  // Show skeleton loaders while loading
   if (isLoading && !allConsultants) {
     return (
       <div className="min-h-screen bg-surface">
@@ -153,7 +171,9 @@ export default function Home() {
 
         {filteredConsultants.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-on-surface-variant text-lg">No online consultants available</p>
+            <p className="text-on-surface-variant text-lg">
+              {isAuthenticated ? 'No new consultants available' : 'No online consultants available'}
+            </p>
             {selectedCategory && (
               <button
                 onClick={() => handleCategorySelect(null)}
@@ -161,6 +181,11 @@ export default function Home() {
               >
                 Clear category filter
               </button>
+            )}
+            {isAuthenticated && filteredConsultants.length === 0 && allConsultants && allConsultants.length > 0 && (
+              <p className="text-sm text-on-surface-variant mt-2">
+                You may already have consultations with all available consultants.
+              </p>
             )}
           </div>
         ) : (

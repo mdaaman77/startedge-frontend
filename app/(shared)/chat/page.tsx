@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, MessageCircle, ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
@@ -9,6 +9,9 @@ import {
     useGetChatHistoryQuery,
     useRequestConsultationMutation,
     useGetRecentClientsQuery,
+    useGetMyConsultationsQuery,
+    useAcceptConsultationMutation,
+    useRejectConsultationMutation,
 } from '@/lib/api/consultation'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Button } from '@/components/ui/Button'
@@ -35,6 +38,7 @@ export default function ChatPage() {
     const [consultationStatus, setConsultationStatus] = useState<ConsultationStatus>('idle')
     const [timeLeft, setTimeLeft] = useState(120)
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null)
+    const [pendingRequestId, setPendingRequestId] = useState<string | null>(null)
 
     const isClient = user?.role === 'client'
     const isConsultant = user?.role === 'consultant'
@@ -49,6 +53,15 @@ export default function ChatPage() {
             skip: !isAuthenticated || !isConsultant,
         })
 
+    const { 
+        data: allConsultations, 
+        isLoading: isLoadingConsultations,
+        refetch: refetchConsultations 
+    } = useGetMyConsultationsQuery(
+        { limit: 100 },
+        { skip: !isAuthenticated }
+    )
+
     const { data: messages, isLoading: messagesLoading, refetch: refetchMessages } =
         useGetChatHistoryQuery(
             selectedConsultantId || '',
@@ -56,6 +69,36 @@ export default function ChatPage() {
         )
 
     const [requestConsultation] = useRequestConsultationMutation()
+    const [acceptConsultation] = useAcceptConsultationMutation()
+    const [rejectConsultation] = useRejectConsultationMutation()
+
+    const listItems = isClient ? consultants : clients
+    const isLoadingList = isClient ? consultantsLoading : clientsLoading
+
+    const selectedUser = listItems?.find(
+        (item) => item.id === selectedConsultantId
+    )
+
+    const hasActiveConsultation = selectedUser?.has_ongoing_consultation || false
+
+    const hasPendingRequest = allConsultations?.some(
+        c => c.consultant_id === selectedConsultantId && c.status === 'requested'
+    ) || false
+
+    const pendingRequest = allConsultations?.find(
+        c => c.consultant_id === selectedConsultantId && c.status === 'requested'
+    )
+
+    const isConsultationRequested = consultationStatus === 'requested' || hasPendingRequest
+
+    const canStartConsultation = useMemo(() => {
+        if (!selectedConsultantId || !isClient) return false
+        const existing = allConsultations?.some(
+            c => c.consultant_id === selectedConsultantId && 
+                 ['requested', 'accepted', 'in_progress'].includes(c.status)
+        )
+        return !existing && selectedUser?.is_online === true
+    }, [allConsultations, selectedConsultantId, isClient, selectedUser?.is_online])
 
     useEffect(() => {
         setMounted(true)
@@ -75,12 +118,33 @@ export default function ChatPage() {
     }, [searchParams])
 
     useEffect(() => {
-        if (selectedConsultantId) {
+        if (selectedConsultantId && isAuthenticated) {
             refetchMessages()
+            if (!isLoadingConsultations) {
+                refetchConsultations()
+            }
         }
-    }, [selectedConsultantId, refetchMessages])
+    }, [selectedConsultantId, isAuthenticated, refetchMessages, refetchConsultations, isLoadingConsultations])
 
-    // Timer countdown
+    // ✅ Check for expired consultation on mount - FIXES REFRESH ISSUE
+    useEffect(() => {
+        if (allConsultations && selectedConsultantId) {
+            const expired = allConsultations.find(
+                c => c.consultant_id === selectedConsultantId && c.status === 'expired'
+            )
+            if (expired) {
+                setConsultationStatus('expired')
+                setTimeLeft(0)
+                setPendingRequestId(null)
+                // Clear any pending request state
+                if (pollingInterval) {
+                    clearInterval(pollingInterval)
+                    setPollingInterval(null)
+                }
+            }
+        }
+    }, [allConsultations, selectedConsultantId])
+
     useEffect(() => {
         if (consultationStatus === 'requested' && timeLeft > 0) {
             const timer = setInterval(() => {
@@ -89,11 +153,13 @@ export default function ChatPage() {
                         clearInterval(timer)
                         setTimeout(() => {
                             setConsultationStatus('expired')
+                            setTimeLeft(0)
                             toast.error('Consultation request expired')
                             if (pollingInterval) {
                                 clearInterval(pollingInterval)
                                 setPollingInterval(null)
                             }
+                            setPendingRequestId(null)
                         }, 0)
                         return 0
                     }
@@ -104,7 +170,6 @@ export default function ChatPage() {
         }
     }, [consultationStatus, timeLeft, pollingInterval])
 
-    // Poll for status changes using refetchConsultants
     useEffect(() => {
         if (consultationStatus === 'requested' && selectedConsultantId && isClient) {
             const interval = setInterval(async () => {
@@ -135,24 +200,22 @@ export default function ChatPage() {
         }
     }, [consultationStatus, selectedConsultantId, isClient, refetchConsultants, router])
 
-    const listItems = isClient ? consultants : clients
-    const isLoadingList = isClient ? consultantsLoading : clientsLoading
-
-    const selectedUser = listItems?.find(
-        (item) => item.id === selectedConsultantId
-    )
-
-    const hasActiveConsultation = selectedUser?.has_ongoing_consultation || false
-    const isConsultationRequested = consultationStatus === 'requested'
-
     const handleConsultantClick = (id: string) => {
         setSelectedConsultantId(id)
         setConsultationStatus('idle')
         setTimeLeft(120)
+        setPendingRequestId(null)
+        // Clear any polling
+        if (pollingInterval) {
+            clearInterval(pollingInterval)
+            setPollingInterval(null)
+        }
         router.push(`/chat?consultant=${id}`)
     }
 
     const handleStartConsultation = () => {
+        setConsultationStatus('idle')
+        setTimeLeft(120)
         setShowBookingModal(true)
     }
 
@@ -165,22 +228,75 @@ export default function ChatPage() {
                 consultant_id: selectedConsultantId,
                 requested_minutes: minutes,
             }).unwrap()
-            console.log('✅ Booking success:', result)
-
+            
+            setPendingRequestId(result.id)
             toast.success('Consultation requested! Waiting for consultant to accept.')
             setShowBookingModal(false)
             setConsultationStatus('requested')
             setTimeLeft(120)
 
-            await refetchConsultants()
-            await refetchClients()
+            try {
+                if (!isLoadingConsultations) {
+                    await refetchConsultations()
+                }
+                await refetchConsultants()
+                await refetchClients()
+            } catch (refetchError) {
+                console.debug('Refetch skipped or failed:', refetchError)
+            }
 
         } catch (error: any) {
             console.log('❌ Booking error:', error)
-            const message = error?.data?.detail || 'Failed to request consultation'
+            let message = 'Failed to request consultation'
+            if (error?.data?.detail) {
+                if (typeof error.data.detail === 'string') {
+                    message = error.data.detail
+                } else if (Array.isArray(error.data.detail)) {
+                    const details = error.data.detail.map((e: any) => e.msg || e.message || e)
+                    message = details.join(', ')
+                }
+            } else if (error?.message) {
+                message = error.message
+            }
             toast.error(message)
+            setConsultationStatus('idle')
         } finally {
             setIsBooking(false)
+        }
+    }
+
+    const handleAcceptRequest = async () => {
+        if (!pendingRequest || !selectedConsultantId) return
+        
+        try {
+            await acceptConsultation(pendingRequest.id).unwrap()
+            toast.success('Consultation accepted!')
+            setConsultationStatus('accepted')
+            setPendingRequestId(null)
+            router.push(`/chat?consultant=${selectedConsultantId}`)
+        } catch (error: any) {
+            toast.error(error?.data?.detail || 'Failed to accept')
+        }
+    }
+
+    const handleRejectRequest = async () => {
+        if (!pendingRequest) return
+        
+        try {
+            await rejectConsultation(pendingRequest.id).unwrap()
+            toast.success('Consultation rejected')
+            setConsultationStatus('idle')
+            setPendingRequestId(null)
+            setTimeLeft(120)
+            try {
+                if (!isLoadingConsultations) {
+                    await refetchConsultations()
+                }
+            } catch (refetchError) {
+                console.debug('Refetch skipped or failed:', refetchError)
+            }
+        } catch (error: any) {
+            toast.error(error?.data?.detail || 'Failed to reject')
         }
     }
 
@@ -189,7 +305,6 @@ export default function ChatPage() {
             .toLowerCase()
             .includes(searchQuery.toLowerCase())
     )
-
         .sort((a, b) => {
             const timeA = a.last_message_time ? new Date(a.last_message_time).getTime() : 0
             const timeB = b.last_message_time ? new Date(b.last_message_time).getTime() : 0
@@ -210,7 +325,7 @@ export default function ChatPage() {
                 <div className="p-4 border-b border-outline-variant/30 flex-shrink-0">
                     <div className="flex items-center gap-2 mb-3">
                         <Button
-                            onClick={() => router.push(isClient ? '/client/dashboard' : '/consultant/dashboard')}
+                            onClick={() => router.push(isClient ? '/' : '/consultant/dashboard')}
                             variant="ghost"
                             className="p-2"
                         >
@@ -292,7 +407,10 @@ export default function ChatPage() {
                     isLoading={messagesLoading}
                     hasActiveConsultation={hasActiveConsultation}
                     isConsultationRequested={isConsultationRequested}
+                    canStartConsultation={canStartConsultation}
                     onStartConsultation={handleStartConsultation}
+                    onAcceptRequest={handleAcceptRequest}
+                    onRejectRequest={handleRejectRequest}
                     userRole={isClient ? 'client' : 'consultant'}
                     totalConversations={listItems?.length || 0}
                     timerSeconds={timeLeft}

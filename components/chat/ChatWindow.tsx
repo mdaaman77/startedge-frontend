@@ -26,6 +26,7 @@ interface ChatWindowProps {
   isLoading: boolean
   hasActiveConsultation: boolean
   isConsultationRequested: boolean
+  canStartConsultation?: boolean
   onSendMessage?: (content: string) => void
   onStartConsultation?: () => void
   onAcceptRequest?: () => void
@@ -41,6 +42,7 @@ export function ChatWindow({
   isLoading,
   hasActiveConsultation,
   isConsultationRequested,
+  canStartConsultation = true,
   onSendMessage,
   onStartConsultation,
   onAcceptRequest,
@@ -95,6 +97,9 @@ export function ChatWindow({
 
   const isClient = userRole === 'client'
   const fullName = `${otherUser.first_name} ${otherUser.last_name}`
+
+  // ✅ Show timer only if requested AND timerSeconds > 0
+  const showTimer = isConsultationRequested && timerSeconds > 0
 
   return (
     <div className="flex-1 flex flex-col bg-surface">
@@ -201,7 +206,8 @@ export function ChatWindow({
       </div>
 
       <div className="p-3 bg-surface-container border-t border-outline-variant/30 flex-shrink-0">
-        {isConsultationRequested && timerSeconds > 0 ? (
+        {/* Show waiting for acceptance timer - only when timerSeconds > 0 */}
+        {showTimer && (
           <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl border border-primary/20">
             <div>
               <p className="text-sm font-medium text-on-surface">Waiting for {isClient ? 'consultant' : 'client'} to accept...</p>
@@ -211,7 +217,22 @@ export function ChatWindow({
               <span className="text-2xl font-bold text-primary">{timerSeconds}s</span>
             </div>
           </div>
-        ) : hasActiveConsultation ? (
+        )}
+
+        {/* Show Accept/Reject buttons ONLY if there's a pending request AND user is consultant */}
+        {isConsultationRequested && timerSeconds > 0 && userRole === 'consultant' && (
+          <div className="flex items-center gap-2 w-full">
+            <Button onClick={onAcceptRequest} variant="gradient" className="flex-1 rounded-full">
+              Accept Request
+            </Button>
+            <Button onClick={onRejectRequest} variant="outline" className="flex-1 rounded-full">
+              Reject
+            </Button>
+          </div>
+        )}
+
+        {/* Show message input when consultation is active */}
+        {hasActiveConsultation && !isConsultationRequested && (
           <div className="flex items-center gap-2 bg-surface-container-low rounded-full px-3 py-1 border border-outline-variant/30">
             <input
               type="text"
@@ -229,29 +250,32 @@ export function ChatWindow({
               <Send className="w-4 h-4" />
             </button>
           </div>
-        ) : (
+        )}
+
+        {/* Show "Start Consultation" for clients when no active consultation and no pending request */}
+        {!hasActiveConsultation && !isConsultationRequested && userRole === 'client' && (
           <div className="flex flex-col items-center gap-2">
-            {userRole === 'client' ? (
-              otherUser.is_online ? (
-                <Button onClick={onStartConsultation} variant="gradient" className="w-full rounded-full">
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  Start Consultation
-                </Button>
-              ) : (
-                <div className="flex items-center gap-2 text-on-surface-variant text-sm">
-                  <span>Consultant is offline</span>
-                </div>
-              )
+            {canStartConsultation && otherUser.is_online ? (
+              <Button onClick={onStartConsultation} variant="gradient" className="w-full rounded-full">
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Start Consultation
+              </Button>
+            ) : !canStartConsultation ? (
+              <div className="flex items-center gap-2 text-on-surface-variant text-sm py-2">
+                <span>You have already requested a consultation</span>
+              </div>
             ) : (
-              <div className="flex items-center gap-2 w-full">
-                <Button onClick={onAcceptRequest} variant="gradient" className="flex-1 rounded-full">
-                  Accept Request
-                </Button>
-                <Button onClick={onRejectRequest} variant="outline" className="flex-1 rounded-full">
-                  Reject
-                </Button>
+              <div className="flex items-center gap-2 text-on-surface-variant text-sm">
+                <span>Consultant is offline</span>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Show nothing for consultant when no active consultation and no pending request */}
+        {!hasActiveConsultation && !isConsultationRequested && userRole === 'consultant' && (
+          <div className="flex items-center justify-center text-on-surface-variant text-sm py-2">
+            <span>No active consultation</span>
           </div>
         )}
       </div>

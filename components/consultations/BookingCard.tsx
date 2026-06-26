@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Clock, Zap, AlertCircle } from 'lucide-react'
+import { Clock, Zap, AlertCircle, CheckCircle } from 'lucide-react'
 import { formatPrice } from '@/lib/utils/utils'
 import { Button } from '@/components/ui/Button'
 
@@ -13,6 +13,7 @@ interface BookingCardProps {
   isClient: boolean
   isConsultationRequested: boolean
   isConsultationActive: boolean
+  hasActiveOrPendingConsultation?: boolean
   walletBalance?: number
   onBookNow: (minutes: number) => void
   onTryAgain: () => void
@@ -30,6 +31,7 @@ export function BookingCard({
   isClient,
   isConsultationRequested,
   isConsultationActive,
+  hasActiveOrPendingConsultation = false,
   walletBalance = 0,
   onBookNow,
   onTryAgain,
@@ -38,6 +40,14 @@ export function BookingCard({
   const [selectedMinutes, setSelectedMinutes] = useState<number | null>(15)
   const [customMinutes, setCustomMinutes] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+
+  // Reset form when status changes to idle
+  useEffect(() => {
+    if (status === 'idle') {
+      setSelectedMinutes(15)
+      setCustomMinutes('')
+    }
+  }, [status])
 
   const getMinutes = (): number => {
     if (customMinutes) {
@@ -70,6 +80,33 @@ export function BookingCard({
     setIsLoading(true)
     await onBookNow(getMinutes())
     setIsLoading(false)
+  }
+
+  // Show "Already booked" message if there's an active or pending consultation
+  if (hasActiveOrPendingConsultation && isClient) {
+    return (
+      <div className="glass-card p-6 rounded-xl">
+        <h3 className="font-bold text-on-surface mb-4">Consultation Status</h3>
+        <div className="text-center py-6">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-primary" />
+          </div>
+          <p className="text-sm font-medium text-on-surface">
+            You already have a consultation with {consultantName}
+          </p>
+          <p className="text-xs text-on-surface-variant mt-2">
+            {isConsultationActive ? 'This consultation is currently active.' : 'Your request is pending acceptance.'}
+          </p>
+          <Button
+            onClick={() => window.location.href = '/chat'}
+            variant="gradient"
+            className="mt-4 w-full"
+          >
+            Go to Chat
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   if (!isClient || !isOnline) {

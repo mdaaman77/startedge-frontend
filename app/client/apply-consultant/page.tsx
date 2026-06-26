@@ -350,7 +350,7 @@ export default function ApplyConsultantPage() {
                 Check Status
               </Button>
               <Button
-                onClick={() => router.push('/client/dashboard')}
+                onClick={() => router.push('/')}
                 variant="outline"
               >
                 Back to Dashboard

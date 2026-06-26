@@ -38,7 +38,7 @@ export default function ConsultantProfilePage() {
     { skip: !consultantId }
   )
 
-  const { data: myConsultations, refetch: refetchConsultations } = useGetMyConsultationsQuery(
+  const { data: myConsultations, refetch: refetchConsultations, isLoading: consultationsLoading } = useGetMyConsultationsQuery(
     { limit: 50 },
     { skip: !isAuthenticated }
   )
@@ -48,6 +48,14 @@ export default function ConsultantProfilePage() {
   })
 
   const [requestConsultation] = useRequestConsultationMutation()
+
+  // Calculate hasActiveOrPendingConsultation BEFORE the useEffect that uses it
+  const hasActiveOrPendingConsultation = myConsultations?.some(
+    c => c.consultant_id === consultantId && 
+         ['requested', 'accepted', 'in_progress'].includes(c.status)
+  ) || false
+
+  const isConsultationRequested = consultationStatus === 'requested'
 
   useEffect(() => {
     if (myConsultations && consultantId) {
@@ -175,6 +183,10 @@ export default function ConsultantProfilePage() {
       toast.error('Consultant is currently offline')
       return
     }
+    if (hasActiveOrPendingConsultation) {
+      toast.error('You already have a consultation with this consultant')
+      return
+    }
     setBookingMinutes(minutes)
     setShowConfirmationModal(true)
   }
@@ -233,7 +245,7 @@ export default function ConsultantProfilePage() {
     stopPolling()
   }
 
-  if (authLoading || consultantLoading) {
+  if (authLoading || consultantLoading || consultationsLoading) {
     return <LoadingSpinner />
   }
 
@@ -368,8 +380,9 @@ export default function ConsultantProfilePage() {
                 perMinuteFee={consultant.per_minute_fee}
                 isOnline={consultant.is_online}
                 isClient={isClient}
-                isConsultationRequested={consultationStatus === 'requested'}
+                isConsultationRequested={isConsultationRequested}
                 isConsultationActive={consultationStatus === 'accepted'}
+                hasActiveOrPendingConsultation={hasActiveOrPendingConsultation}
                 walletBalance={walletBalance}
                 onBookNow={handleBookNow}
                 onTryAgain={handleTryAgain}

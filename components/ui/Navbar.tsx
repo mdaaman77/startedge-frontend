@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Menu, X, Rocket, User, LogOut, ChevronDown, Bell, Wallet,
-  LayoutDashboard, Briefcase, DollarSign, Users, MessageCircle, Calendar
+  LayoutDashboard, Briefcase, DollarSign, Users, MessageCircle, Calendar,Clock
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { ThemeToggle } from './ThemeToggle'
@@ -74,7 +74,6 @@ export function Navbar() {
   const isClient = user?.role === 'client'
   const isConsultant = user?.role === 'consultant'
 
-  // Build dropdown items based on role
   const getDropdownItems = (): DropdownMenuItem[] => {
     const commonItems: DropdownMenuItem[] = [
       {
@@ -109,6 +108,13 @@ export function Navbar() {
         onClick: () => router.push('/consultant/dashboard'),
       },
       {
+        id: 'requests',
+        label: 'Incoming Requests',
+        icon: Clock,
+        onClick: () => router.push('/consultant/requests'),
+        divider: true,
+      },
+      {
         id: 'recent-clients',
         label: 'View All Recent Clients',
         icon: MessageCircle,
@@ -116,7 +122,6 @@ export function Navbar() {
         divider: true,
       },
     ]
-
     const adminItems: DropdownMenuItem[] = [
       {
         id: 'admin-dashboard',
@@ -171,7 +176,6 @@ export function Navbar() {
 
   const dropdownItems = getDropdownItems()
 
-  // Mobile menu items (same as dropdown)
   const getMobileItems = () => {
     const items: { label: string; onClick: () => void; className?: string }[] = [
       { label: 'Edit Profile', onClick: handleOpenProfile },
@@ -202,7 +206,6 @@ export function Navbar() {
 
   const mobileItems = getMobileItems()
 
-  // Avatar trigger for dropdown
   const avatarTrigger = (
     <div className="flex items-center gap-2 text-sm font-medium text-on-surface-variant hover:text-primary transition-colors cursor-pointer">
       <div className="w-8 h-8 rounded-full bg-primary-container/20 flex items-center justify-center overflow-hidden">
@@ -221,14 +224,37 @@ export function Navbar() {
     </div>
   )
 
+  // ✅ If not mounted yet, render a placeholder that matches server render
+  if (!mounted) {
+    return (
+      <header className="fixed top-0 left-0 right-0 z-50 bg-transparent">
+        <nav className="container mx-auto px-4 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 shrink-0 mr-auto">
+            <div className="w-8 h-8 bg-primary-container rounded-lg flex items-center justify-center">
+              <Rocket className="w-4 h-4 text-on-primary-container" />
+            </div>
+            <span className="text-xl font-black text-primary">StartEdge</span>
+          </Link>
+          <div className="hidden md:flex items-center gap-3">
+            <div className="w-9 h-9" />
+            <div className="w-9 h-9" />
+            <div className="w-8 h-8 rounded-full bg-surface-variant animate-pulse" />
+          </div>
+          <button className="md:hidden text-on-surface">
+            <Menu size={24} />
+          </button>
+        </nav>
+      </header>
+    )
+  }
+
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-          isScrolled
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${isScrolled
             ? 'bg-surface/90 backdrop-blur-xl border-b border-outline-variant/30'
             : 'bg-transparent'
-        }`}
+          }`}
       >
         <nav className="container mx-auto px-4 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 shrink-0 mr-auto">
@@ -238,7 +264,6 @@ export function Navbar() {
             <span className="text-xl font-black text-primary">StartEdge</span>
           </Link>
 
-          {/* Desktop Right Side */}
           <div className="hidden md:flex items-center gap-3">
             <ThemeToggle />
 
@@ -292,7 +317,6 @@ export function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="md:hidden text-on-surface hover:text-primary transition-colors"
@@ -302,7 +326,6 @@ export function Navbar() {
           </button>
         </nav>
 
-        {/* Mobile Menu */}
         <AnimatePresence>
           {isMobileMenuOpen && (
             <motion.div
@@ -329,9 +352,8 @@ export function Navbar() {
                           setIsMobileMenuOpen(false)
                           item.onClick()
                         }}
-                        className={`text-sm font-medium text-on-surface hover:text-primary transition-colors py-2 text-left ${
-                          item.className || ''
-                        }`}
+                        className={`text-sm font-medium text-on-surface hover:text-primary transition-colors py-2 text-left ${item.className || ''
+                          }`}
                       >
                         {item.label}
                       </button>

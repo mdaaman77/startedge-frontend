@@ -59,6 +59,19 @@ export default function ConsultationsPage() {
     consultantMap[c.user_id] = c
   })
 
+  // ✅ Hook moved BEFORE conditional return - FIXES the hooks order error
+  const otherUserMap = useMemo(() => {
+    const map: Record<string, any> = {}
+    consultations?.forEach(c => {
+      if (isClient) {
+        map[c.id] = consultantMap[c.consultant_id] || null
+      } else {
+        map[c.id] = c.client || null
+      }
+    })
+    return map
+  }, [consultations, isClient, consultantMap])
+
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login')
@@ -146,21 +159,10 @@ export default function ConsultationsPage() {
     setIsModalOpen(false)
   }
 
+  // ✅ Conditional return AFTER all hooks
   if (authLoading || consultationsLoading || consultantsLoading) {
     return <LoadingSpinner />
   }
-
-  const otherUserMap = useMemo(() => {
-    const map: Record<string, any> = {}
-    consultations?.forEach(c => {
-      if (isClient) {
-        map[c.id] = consultantMap[c.consultant_id] || null
-      } else {
-        map[c.id] = c.client || null
-      }
-    })
-    return map
-  }, [consultations, isClient, consultantMap])
 
   const selectedOtherUser = selectedConsultation ? otherUserMap[selectedConsultation.id] : null
 
@@ -176,7 +178,7 @@ export default function ConsultationsPage() {
           </p>
         </div>
         <Button
-          onClick={() => router.push(isClient ? '/client/dashboard' : '/consultant/dashboard')}
+          onClick={() => router.push(isClient ? '/' : '/consultant/dashboard')}
           variant="outline"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />

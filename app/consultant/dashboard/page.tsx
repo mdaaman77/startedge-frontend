@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { Navbar } from '@/components/ui/Navbar'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { IncomingRequestCard } from '@/components/consultations/IncomingRequestCard'
+import { OnlineToggle } from '@/components/ui/OnlineToggle'
 import {
   useGetIncomingRequestsQuery,
   useAcceptConsultationMutation,
@@ -15,12 +16,20 @@ import {
   useGetMyConsultationsQuery,
 } from '@/lib/api/consultation'
 import { useGetWalletBalanceQuery } from '@/lib/api/wallet'
+import { useGetMyProfileQuery, useToggleOnlineMutation } from '@/lib/api/consultant'
 import { formatPrice } from '@/lib/utils/utils'
 import toast from 'react-hot-toast'
 
 export default function ConsultantDashboardPage() {
   const router = useRouter()
   const { user, isAuthenticated, isLoading: authLoading } = useAuth()
+  const [mounted, setMounted] = useState(false)
+
+  const { data: profile, isLoading: profileLoading } = useGetMyProfileQuery(undefined, {
+    skip: !isAuthenticated || user?.role !== 'consultant',
+  })
+
+  const [toggleOnline, { isLoading: isToggling }] = useToggleOnlineMutation()
 
   const { data: incomingRequests, isLoading: incomingLoading, refetch: refetchIncoming } =
     useGetIncomingRequestsQuery(undefined, {
@@ -41,20 +50,35 @@ export default function ConsultantDashboardPage() {
   const [processingId, setProcessingId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push('/login')
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!authLoading && mounted) {
+      if (!isAuthenticated) {
+        router.push('/login')
+        return
+      }
+      if (user?.role !== 'consultant') {
+        router.push('/')
+        return
+      }
     }
-    if (!authLoading && isAuthenticated && user?.role !== 'consultant') {
-      router.push('/client/dashboard')
-    }
-  }, [authLoading, isAuthenticated, user, router])
+  }, [authLoading, mounted, isAuthenticated, user, router])
 
   const handleAccept = async (id: string) => {
     setProcessingId(id)
     try {
-      await acceptConsultation(id).unwrap()
+      const result = await acceptConsultation(id).unwrap()
       toast.success('Consultation accepted!')
       await refetchIncoming()
+      
+      // ✅ Redirect to chat with the client
+      if (result && result.client_id) {
+        router.push(`/chat?consultant=${result.client_id}`)
+      } else {
+        router.push('/chat')
+      }
     } catch (error: any) {
       toast.error(error?.data?.detail || 'Failed to accept')
     } finally {
@@ -75,14 +99,26 @@ export default function ConsultantDashboardPage() {
     }
   }
 
-  if (authLoading || incomingLoading || consultationsLoading) {
+  const handleToggleOnline = async (isOnline: boolean) => {
+    try {
+      await toggleOnline({ is_online: isOnline }).unwrap()
+      toast.success(`Status updated to ${isOnline ? 'Online' : 'Offline'}`)
+    } catch (error: any) {
+      toast.error(error?.data?.detail || 'Failed to update status')
+    }
+  }
+
+  if (!mounted || authLoading || incomingLoading || consultationsLoading || profileLoading) {
     return <LoadingSpinner />
   }
 
   const totalEarnings = walletData?.balance || 0
   const totalClients = new Set(allConsultations?.map(c => c.client_id) || []).size
   const totalConsultations = allConsultations?.length || 0
-  const averageRating = 0
+  const averageRating = profile?.average_rating || 0
+  const isOnline = profile?.is_online || false
+
+  const displayRequests = incomingRequests?.slice(0, 3) || []
 
   return (
     <div className="min-h-screen bg-surface">
@@ -101,6 +137,11 @@ export default function ConsultantDashboardPage() {
               </h1>
               <p className="text-on-surface-variant">Manage your consultations and clients</p>
             </div>
+            <OnlineToggle
+              isOnline={isOnline}
+              onToggle={handleToggleOnline}
+              isLoading={isToggling}
+            />
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
@@ -170,7 +211,7 @@ export default function ConsultantDashboardPage() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold text-on-surface">Incoming Requests</h2>
                 <button
-                  onClick={() => router.push('/consultations')}
+                  onClick={() => router.push('/consultant/requests')}
                   className="text-primary text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all"
                 >
                   View All
@@ -178,7 +219,7 @@ export default function ConsultantDashboardPage() {
                 </button>
               </div>
               <div className="flex overflow-x-auto gap-4 pb-4 hide-scrollbar">
-                {incomingRequests.map((request) => {
+                {displayRequests.map((request) => {
                   const clientName = request.client?.first_name 
                     ? `${request.client.first_name} ${request.client.last_name}`
                     : `Client ${request.client_id.slice(0, 8)}`
@@ -209,7 +250,7 @@ export default function ConsultantDashboardPage() {
               </div>
               <h3 className="text-xl font-semibold text-on-surface mb-2">No Incoming Requests</h3>
               <p className="text-on-surface-variant text-sm">
-                When clients request a consultation, you'll see them here.
+                When clients request a consultation, You,ll see them here.
               </p>
             </div>
           )}

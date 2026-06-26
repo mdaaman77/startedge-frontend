@@ -17,6 +17,35 @@ export interface Consultant {
   avatar_url: string
 }
 
+export interface ConsultantProfileResponse {
+  id: string
+  user_id: string
+  category: string
+  specialization_id: string | null
+  specialization_name: string | null
+  experience_years: number | null
+  per_minute_fee: number
+  is_online: boolean
+  average_rating: number
+  total_reviews: number
+  bio: string | null
+  created_at: string
+  updated_at: string
+  first_name: string
+  last_name: string
+  email: string
+  phone: string | null
+  avatar_url: string | null
+}
+
+export type ConsultantProfileUpdate = {
+  category?: string
+  specialization_id?: string | null
+  experience_years?: number | null
+  per_minute_fee?: number | null
+  bio?: string | null
+}
+
 export interface ConsultantListParams {
   search?: string
   category?: string
@@ -31,7 +60,6 @@ export interface ConsultantListParams {
   limit?: number
 }
 
-// --- Consultant Request Types ---
 export interface ConsultantRequestCreate {
   about_yourself: string
   why_consultant: string
@@ -68,6 +96,7 @@ export interface ConsultantRequestResponse {
 }
 
 export const consultantApi = api.injectEndpoints({
+  overrideExisting: true,
   endpoints: (builder) => ({
     // --- Existing Endpoints ---
     listConsultants: builder.query<Consultant[], ConsultantListParams>({
@@ -96,6 +125,29 @@ export const consultantApi = api.injectEndpoints({
       providesTags: (result, error, id) => [{ type: 'Consultant', id }],
     }),
 
+    // --- Consultant Profile Endpoints ---
+    getMyProfile: builder.query<ConsultantProfileResponse, void>({
+      query: () => '/consultants/me',
+      providesTags: ['ConsultantProfile'],
+    }),
+
+    updateConsultantProfile: builder.mutation<ConsultantProfileResponse, ConsultantProfileUpdate>({
+      query: (body) => ({
+        url: '/consultants/me',
+        method: 'PATCH',
+        body,
+      }),
+      invalidatesTags: ['ConsultantProfile'],
+    }),
+
+    toggleOnline: builder.mutation<{ is_online: boolean; message: string }, { is_online: boolean }>({
+      query: ({ is_online }) => ({
+        url: `/consultants/me/toggle-online?is_online=${is_online}`,
+        method: 'PATCH',
+      }),
+      invalidatesTags: ['ConsultantProfile'],
+    }),
+
     // --- Consultant Request Endpoints ---
     applyForConsultant: builder.mutation<ConsultantRequestResponse, ConsultantRequestCreate>({
       query: (body) => ({
@@ -107,27 +159,28 @@ export const consultantApi = api.injectEndpoints({
     }),
 
     getMyConsultantRequest: builder.query<ConsultantRequestResponse | null, void>({
-  query: () => '/consultants/request/me',
-  providesTags: ['ConsultantRequest'],
-  
-  transformResponse: (response: ConsultantRequestResponse) => {
-    return response
-  },
-  transformErrorResponse: (response) => {
-    // Return null for 404 (no application found)
-    if (response.status === 404) {
-      return null
-    }
-    // For other errors, return the error
-    return response
-  },
-}),
+      query: () => '/consultants/request/me',
+      providesTags: ['ConsultantRequest'],
+      
+      transformResponse: (response: ConsultantRequestResponse) => {
+        return response
+      },
+      transformErrorResponse: (response) => {
+        if (response.status === 404) {
+          return null
+        }
+        return response
+      },
+    }),
   }),
 })
 
 export const {
   useListConsultantsQuery,
   useGetConsultantQuery,
+  useGetMyProfileQuery,
+  useUpdateConsultantProfileMutation,
+  useToggleOnlineMutation,
   useApplyForConsultantMutation,
   useGetMyConsultantRequestQuery,
 } = consultantApi
