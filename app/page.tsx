@@ -6,12 +6,11 @@ import { motion } from 'framer-motion'
 import { Users, Clock } from 'lucide-react'
 import { Navbar } from '@/components/ui/Navbar'
 import { Footer } from '@/components/ui/Footer'
+import { ConsultantSearchFilters } from '@/components/consultants/ConsultantSearchFilters'
+import { ConsultantCard } from '@/components/consultants/ConsultantCard'
 import { useListConsultantsQuery } from '@/lib/api/consultant'
 import { useGetMyConsultationsQuery } from '@/lib/api/consultation'
 import { useAuth } from '@/hooks/useAuth'
-import { ConsultantCard } from '@/components/consultants/ConsultantCard'
-import { ConsultantSearchFilters } from '@/components/consultants/ConsultantSearchFilters'
-import { useThrottle } from '@/lib/hooks/useThrottle'
 
 const categories = ['healthcare', 'legal', 'finance', 'tech', 'mental_health', 'business', 'education', 'fitness']
 
@@ -47,13 +46,12 @@ export default function Home() {
     is_online: true,
   })
 
-  // Fetch user's consultations to filter out consultants they already have active/pending with
   const { data: myConsultations } = useGetMyConsultationsQuery(
     { limit: 100 },
     { skip: !isAuthenticated }
   )
 
-  // Create a set of consultant IDs that the user has pending/active consultations with
+  // Block consultants with active/pending consultations (requested, accepted, in_progress)
   const blockedConsultantIds = useMemo(() => {
     if (!myConsultations || !isAuthenticated) return new Set()
     return new Set(
@@ -63,7 +61,16 @@ export default function Home() {
     )
   }, [myConsultations, isAuthenticated])
 
-  // Filter out consultants with existing consultations
+  // Track consultants with ACTIVE consultations (accepted, in_progress) for "Busy" state
+  const activeConsultationIds = useMemo(() => {
+    if (!myConsultations || !isAuthenticated) return new Set()
+    return new Set(
+      myConsultations
+        .filter(c => ['accepted', 'in_progress'].includes(c.status))
+        .map(c => c.consultant_id)
+    )
+  }, [myConsultations, isAuthenticated])
+
   const filteredConsultants = useMemo(() => {
     if (!allConsultants) return []
     if (!isAuthenticated) return allConsultants
@@ -100,39 +107,7 @@ export default function Home() {
     }
   }, [isAuthenticated, router])
 
-  const throttledChatClick = useThrottle(handleChatClick, 1000)
-
   const showWelcome = isAuthenticated && user
-
-  if (isLoading && !allConsultants) {
-    return (
-      <div className="min-h-screen bg-surface">
-        <Navbar />
-        <div className="container mx-auto px-4 pt-24 pb-12">
-          <div className="mb-8">
-            <div className="h-10 w-64 bg-surface-variant rounded animate-pulse" />
-            <div className="h-5 w-96 bg-surface-variant rounded mt-2 animate-pulse" />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div key={i} className="glass-card p-4 rounded-xl animate-pulse">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 rounded-full bg-surface-variant" />
-                  <div className="flex-1">
-                    <div className="h-4 w-24 bg-surface-variant rounded mb-1" />
-                    <div className="h-3 w-16 bg-surface-variant rounded" />
-                  </div>
-                </div>
-                <div className="h-4 w-20 bg-surface-variant rounded mb-2" />
-                <div className="h-3 w-32 bg-surface-variant rounded mb-3" />
-                <div className="h-9 w-full bg-surface-variant rounded-lg" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-surface">
@@ -169,7 +144,24 @@ export default function Home() {
           searchValue={searchTerm}
         />
 
-        {filteredConsultants.length === 0 ? (
+        {isLoading && !allConsultants ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="glass-card p-4 rounded-xl animate-pulse">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-full bg-surface-variant" />
+                  <div className="flex-1">
+                    <div className="h-4 w-24 bg-surface-variant rounded mb-1" />
+                    <div className="h-3 w-16 bg-surface-variant rounded" />
+                  </div>
+                </div>
+                <div className="h-4 w-20 bg-surface-variant rounded mb-2" />
+                <div className="h-3 w-32 bg-surface-variant rounded mb-3" />
+                <div className="h-9 w-full bg-surface-variant rounded-lg" />
+              </div>
+            ))}
+          </div>
+        ) : filteredConsultants.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-on-surface-variant text-lg">
               {isAuthenticated ? 'No new consultants available' : 'No online consultants available'}
@@ -181,11 +173,6 @@ export default function Home() {
               >
                 Clear category filter
               </button>
-            )}
-            {isAuthenticated && filteredConsultants.length === 0 && allConsultants && allConsultants.length > 0 && (
-              <p className="text-sm text-on-surface-variant mt-2">
-                You may already have consultations with all available consultants.
-              </p>
             )}
           </div>
         ) : (
@@ -201,7 +188,8 @@ export default function Home() {
                   consultant={consultant}
                   index={index}
                   isAuthenticated={isAuthenticated}
-                  onChatClick={throttledChatClick}
+                  onChatClick={handleChatClick}
+                  hasActiveConsultation={activeConsultationIds.has(consultant.user_id)}
                 />
               ))}
             </div>

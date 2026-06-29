@@ -31,6 +31,7 @@ interface ChatWindowProps {
   onStartConsultation?: () => void
   onAcceptRequest?: () => void
   onRejectRequest?: () => void
+  cooldownSeconds?: number
   timerSeconds?: number
   userRole: 'client' | 'consultant'
   totalConversations?: number
@@ -47,6 +48,7 @@ export function ChatWindow({
   onStartConsultation,
   onAcceptRequest,
   onRejectRequest,
+  cooldownSeconds = 0, 
   timerSeconds = 0,
   userRole,
   totalConversations = 0,
@@ -180,15 +182,13 @@ export function ChatWindow({
                       )}
                     </div>
                   )}
-                  <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl ${
-                    isOwn
-                      ? 'bg-primary text-on-primary rounded-br-sm'
-                      : 'bg-surface-container text-on-surface rounded-bl-sm shadow-sm'
-                  }`}>
-                    <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
-                    <div className={`flex items-center justify-end gap-1 mt-1 ${
-                      isOwn ? 'text-primary-200/80' : 'text-on-surface-variant/60'
+                  <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl ${isOwn
+                    ? 'bg-primary text-on-primary rounded-br-sm'
+                    : 'bg-surface-container text-on-surface rounded-bl-sm shadow-sm'
                     }`}>
+                    <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
+                    <div className={`flex items-center justify-end gap-1 mt-1 ${isOwn ? 'text-primary-200/80' : 'text-on-surface-variant/60'
+                      }`}>
                       <span className="text-[10px]">{formatTime(msg.created_at)}</span>
                       {isOwn && (
                         <span className="text-[10px]">
@@ -230,7 +230,13 @@ export function ChatWindow({
             </Button>
           </div>
         )}
-
+        {cooldownSeconds && cooldownSeconds > 0 && !isConsultationRequested && !hasActiveConsultation && (
+          <div className="flex items-center justify-center p-3 bg-error/10 rounded-xl border border-error/20">
+            <p className="text-sm text-on-surface-variant">
+              Please wait <span className="font-bold text-error">{cooldownSeconds}s</span> before booking again
+            </p>
+          </div>
+        )}
         {/* Show message input when consultation is active */}
         {hasActiveConsultation && !isConsultationRequested && (
           <div className="flex items-center gap-2 bg-surface-container-low rounded-full px-3 py-1 border border-outline-variant/30">
@@ -255,7 +261,11 @@ export function ChatWindow({
         {/* Show "Start Consultation" for clients when no active consultation and no pending request */}
         {!hasActiveConsultation && !isConsultationRequested && userRole === 'client' && (
           <div className="flex flex-col items-center gap-2">
-            {canStartConsultation && otherUser.is_online ? (
+            {cooldownSeconds && cooldownSeconds > 0 ? (
+              <div className="flex items-center gap-2 text-on-surface-variant text-sm py-2">
+                <span>Cooldown: {cooldownSeconds}s</span>
+              </div>
+            ) : canStartConsultation && otherUser.is_online ? (
               <Button onClick={onStartConsultation} variant="gradient" className="w-full rounded-full">
                 <MessageCircle className="w-4 h-4 mr-2" />
                 Start Consultation

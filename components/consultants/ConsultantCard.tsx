@@ -6,12 +6,14 @@ import { Star, User, Zap } from 'lucide-react'
 import { Consultant } from '@/lib/api/consultant'
 import { formatPrice } from '@/lib/utils/utils'
 import { useThrottle } from '@/lib/hooks/useThrottle'
+import { cn } from '@/lib/utils/utils'
 
 interface ConsultantCardProps {
   consultant: Consultant
   index?: number
   isAuthenticated: boolean
   onChatClick: (consultantId: string) => void
+  hasActiveConsultation?: boolean  // ✅ Add this prop
 }
 
 export function ConsultantCard({
@@ -19,11 +21,14 @@ export function ConsultantCard({
   index = 0,
   isAuthenticated,
   onChatClick,
+  hasActiveConsultation = false,  // ✅ Default to false
 }: ConsultantCardProps) {
   const router = useRouter()
   const fullName = `${consultant.first_name} ${consultant.last_name}`
   const displayName = fullName.length > 20 ? `${fullName.slice(0, 18)}...` : fullName
   const specialization = consultant.specialization_name || consultant.category || 'Expert'
+
+  const isBusy = hasActiveConsultation && consultant.is_online
 
   const handleCardClick = () => {
     if (isAuthenticated) {
@@ -37,6 +42,19 @@ export function ConsultantCard({
     e.stopPropagation()
     onChatClick(id)
   }, 1000)
+
+  const buttonConfig = {
+    disabled: !consultant.is_online || isBusy,
+    label: isBusy ? 'Busy' : consultant.is_online ? 'Chat Now' : 'Offline',
+    className: cn(
+      'w-full py-2 rounded-lg text-sm font-medium transition-all duration-200',
+      consultant.is_online && !isBusy
+        ? 'bg-primary text-on-primary hover:opacity-90 hover:scale-[0.98]'
+        : isBusy
+        ? 'bg-yellow-500/20 text-yellow-500 cursor-not-allowed'
+        : 'bg-surface-variant text-on-surface-variant cursor-not-allowed opacity-60'
+    ),
+  }
 
   return (
     <motion.div
@@ -75,8 +93,11 @@ export function ConsultantCard({
           ) : (
             <span className="w-2 h-2 rounded-full bg-outline-variant" />
           )}
-          <span className={`text-[10px] font-medium ${consultant.is_online ? 'text-tertiary' : 'text-outline'}`}>
-            {consultant.is_online ? 'Online' : 'Offline'}
+          <span className={cn(
+            'text-[10px] font-medium',
+            consultant.is_online ? (isBusy ? 'text-yellow-500' : 'text-tertiary') : 'text-outline'
+          )}>
+            {consultant.is_online ? (isBusy ? 'Busy' : 'Online') : 'Offline'}
           </span>
         </div>
       </div>
@@ -108,14 +129,10 @@ export function ConsultantCard({
 
       <button
         onClick={(e) => throttledChatClick(e, consultant.user_id)}
-        disabled={!consultant.is_online}
-        className={`w-full py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-          consultant.is_online
-            ? 'bg-primary text-on-primary hover:opacity-90 hover:scale-[0.98]'
-            : 'bg-surface-variant text-on-surface-variant cursor-not-allowed opacity-60'
-        }`}
+        disabled={buttonConfig.disabled}
+        className={buttonConfig.className}
       >
-        {consultant.is_online ? 'Chat Now' : 'Offline'}
+        {buttonConfig.label}
       </button>
     </motion.div>
   )

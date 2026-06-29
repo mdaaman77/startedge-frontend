@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Star, Clock, User, ArrowLeft, Calendar } from 'lucide-react'
@@ -15,6 +15,7 @@ import { BookingCard } from '@/components/consultations/BookingCard'
 import { ConfirmationModal } from '@/components/consultations/ConfirmationModal'
 import { TimerBanner } from '@/components/consultations/TimerBanner'
 import { formatPrice } from '@/lib/utils/utils'
+import { useCooldown } from '@/hooks/useCooldown'
 import toast from 'react-hot-toast'
 
 type ConsultationStatus = 'idle' | 'requested' | 'accepted' | 'rejected' | 'expired'
@@ -50,10 +51,23 @@ export default function ConsultantProfilePage() {
   const [requestConsultation] = useRequestConsultationMutation()
 
   // Calculate hasActiveOrPendingConsultation BEFORE the useEffect that uses it
-  const hasActiveOrPendingConsultation = myConsultations?.some(
-    c => c.consultant_id === consultantId && 
-         ['requested', 'accepted', 'in_progress'].includes(c.status)
-  ) || false
+  // ✅ Only check for consultations with this specific consultant
+  const hasActiveOrPendingConsultation = useMemo(() => {
+    if (!myConsultations || !consultantId) return false
+    return myConsultations.some(
+      c => c.consultant_id === consultantId &&
+        ['requested', 'accepted', 'in_progress'].includes(c.status)
+    )
+  }, [myConsultations, consultantId])
+
+  const cooldown = useCooldown({
+    duration: 60,
+    onComplete: () => {
+      setConsultationStatus('idle')
+      setTimeLeft(120)
+      setConsultationId(null)
+    },
+  })
 
   const isConsultationRequested = consultationStatus === 'requested'
 
@@ -154,6 +168,7 @@ export default function ConsultantProfilePage() {
               setConsultationStatus('expired')
               toast.error('Consultation request expired')
               stopPolling()
+              cooldown.start()
             }, 0)
             return 0
           }
@@ -162,7 +177,7 @@ export default function ConsultantProfilePage() {
       }, 1000)
       return () => clearInterval(timer)
     }
-  }, [consultationStatus, timeLeft])
+  }, [consultationStatus, timeLeft, cooldown])
 
   useEffect(() => {
     return () => {
@@ -232,10 +247,15 @@ export default function ConsultantProfilePage() {
   }
 
   const handleTryAgain = () => {
+    if (cooldown.isActive) {
+      toast.error(`Please wait ${cooldown.timeLeft}s before trying again`)
+      return
+    }
     setConsultationStatus('idle')
     setTimeLeft(120)
     setConsultationId(null)
     stopPolling()
+    cooldown.reset()
   }
 
   const handleDismissBanner = () => {
@@ -243,6 +263,7 @@ export default function ConsultantProfilePage() {
     setTimeLeft(120)
     setConsultationId(null)
     stopPolling()
+    cooldown.reset()
   }
 
   if (authLoading || consultantLoading || consultationsLoading) {
@@ -262,10 +283,10 @@ export default function ConsultantProfilePage() {
 
   const isClient = user?.role === 'client'
   const walletBalance = walletData?.balance || 0
-  const showTimerBanner = consultationStatus === 'requested' || 
-                          consultationStatus === 'accepted' || 
-                          consultationStatus === 'rejected' || 
-                          consultationStatus === 'expired'
+  const showTimerBanner = consultationStatus === 'requested' ||
+    consultationStatus === 'accepted' ||
+    consultationStatus === 'rejected' ||
+    consultationStatus === 'expired'
 
   return (
     <div className="min-h-screen bg-surface">
@@ -386,6 +407,7 @@ export default function ConsultantProfilePage() {
                 walletBalance={walletBalance}
                 onBookNow={handleBookNow}
                 onTryAgain={handleTryAgain}
+                cooldownSeconds={cooldown.isActive ? cooldown.timeLeft : 0}
                 status={consultationStatus}
               />
             </div>

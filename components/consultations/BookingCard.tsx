@@ -18,6 +18,7 @@ interface BookingCardProps {
   onBookNow: (minutes: number) => void
   onTryAgain: () => void
   status: 'idle' | 'requested' | 'rejected' | 'expired'
+  cooldownSeconds?: number
 }
 
 const PRESET_DURATIONS = [15, 30, 45, 60]
@@ -36,12 +37,12 @@ export function BookingCard({
   onBookNow,
   onTryAgain,
   status,
+  cooldownSeconds = 0,
 }: BookingCardProps) {
   const [selectedMinutes, setSelectedMinutes] = useState<number | null>(15)
   const [customMinutes, setCustomMinutes] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  // Reset form when status changes to idle
   useEffect(() => {
     if (status === 'idle') {
       setSelectedMinutes(15)
@@ -82,8 +83,26 @@ export function BookingCard({
     setIsLoading(false)
   }
 
-  // Show "Already booked" message if there's an active or pending consultation
-  if (hasActiveOrPendingConsultation && isClient) {
+  // ✅ Check REQUESTED status FIRST - show waiting state
+  if (status === 'requested') {
+    return (
+      <div className="glass-card p-6 rounded-xl">
+        <h3 className="font-bold text-on-surface mb-4">Waiting for Acceptance</h3>
+        <div className="text-center py-6">
+          <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm font-medium text-on-surface">
+            Waiting for {consultantName} to accept...
+          </p>
+          <p className="text-xs text-on-surface-variant mt-2">
+            You can navigate away, the request will stay active for 2 minutes.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ Then check for ACTIVE consultation (accepted/in_progress) - NOT requested
+  if (hasActiveOrPendingConsultation && isClient && isConsultationActive) {
     return (
       <div className="glass-card p-6 rounded-xl">
         <h3 className="font-bold text-on-surface mb-4">Consultation Status</h3>
@@ -92,10 +111,10 @@ export function BookingCard({
             <CheckCircle className="w-8 h-8 text-primary" />
           </div>
           <p className="text-sm font-medium text-on-surface">
-            You already have a consultation with {consultantName}
+            You already have an active consultation with {consultantName}
           </p>
           <p className="text-xs text-on-surface-variant mt-2">
-            {isConsultationActive ? 'This consultation is currently active.' : 'Your request is pending acceptance.'}
+            This consultation is currently in progress.
           </p>
           <Button
             onClick={() => window.location.href = '/chat'}
@@ -137,30 +156,21 @@ export function BookingCard({
           <p className="text-sm text-error font-medium">
             {status === 'rejected' ? 'Consultation rejected' : 'Request expired'}
           </p>
-          <Button
-            onClick={onTryAgain}
-            variant="gradient"
-            className="mt-4 w-full"
-          >
-            Try Again
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  if (status === 'requested') {
-    return (
-      <div className="glass-card p-6 rounded-xl">
-        <h3 className="font-bold text-on-surface mb-4">Waiting for Acceptance</h3>
-        <div className="text-center py-6">
-          <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm font-medium text-on-surface">
-            Waiting for {consultantName} to accept...
-          </p>
-          <p className="text-xs text-on-surface-variant mt-2">
-            You can navigate away, the request will stay active for 2 minutes.
-          </p>
+          {cooldownSeconds && cooldownSeconds > 0 ? (
+            <div className="mt-4">
+              <p className="text-sm text-on-surface-variant">
+                Please wait <span className="font-bold text-error">{cooldownSeconds}s</span> before trying again
+              </p>
+            </div>
+          ) : (
+            <Button
+              onClick={onTryAgain}
+              variant="gradient"
+              className="mt-4 w-full"
+            >
+              Try Again
+            </Button>
+          )}
         </div>
       </div>
     )
@@ -242,7 +252,7 @@ export function BookingCard({
           onClick={handleBookNow}
           variant="gradient"
           className="w-full"
-          disabled={!isValid || !canAfford || isLoading}
+          disabled={!isValid || !canAfford || isLoading || isConsultationRequested}
         >
           {isLoading ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

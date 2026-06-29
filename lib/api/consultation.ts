@@ -112,6 +112,14 @@ export const consultationApi = api.injectEndpoints({
       invalidatesTags: ['Consultation'],
     }),
 
+    expireConsultation: builder.mutation<Consultation, string>({
+      query: (id) => ({
+        url: `/consultations/${id}/expire`,
+        method: 'POST',
+      }),
+      invalidatesTags: ['Consultation'],
+    }),
+
     extendConsultation: builder.mutation<Consultation, { id: string; extra_minutes: number }>({
       query: ({ id, extra_minutes }) => ({
         url: `/consultations/${id}/extend`,
@@ -157,6 +165,7 @@ export const {
   useRequestConsultationMutation,
   useAcceptConsultationMutation,
   useRejectConsultationMutation,
+  useExpireConsultationMutation,  
   useExtendConsultationMutation,
   useCompleteConsultationMutation,
   useGetRecentConsultantsQuery,
