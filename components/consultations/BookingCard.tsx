@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
 import { Clock, Zap, AlertCircle, CheckCircle } from 'lucide-react'
 import { formatPrice } from '@/lib/utils/utils'
 import { Button } from '@/components/ui/Button'
@@ -83,25 +82,7 @@ export function BookingCard({
     setIsLoading(false)
   }
 
-  // ✅ Check REQUESTED status FIRST - show waiting state
-  if (status === 'requested') {
-    return (
-      <div className="glass-card p-6 rounded-xl">
-        <h3 className="font-bold text-on-surface mb-4">Waiting for Acceptance</h3>
-        <div className="text-center py-6">
-          <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-sm font-medium text-on-surface">
-            Waiting for {consultantName} to accept...
-          </p>
-          <p className="text-xs text-on-surface-variant mt-2">
-            You can navigate away, the request will stay active for 2 minutes.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  // ✅ Then check for ACTIVE consultation (accepted/in_progress) - NOT requested
+  // Show "Already booked" for ACTIVE consultations only (accepted/in_progress)
   if (hasActiveOrPendingConsultation && isClient && isConsultationActive) {
     return (
       <div className="glass-card p-6 rounded-xl">
@@ -128,26 +109,25 @@ export function BookingCard({
     )
   }
 
-  if (!isClient || !isOnline) {
+  // Show "Waiting for Acceptance" for requested consultations
+  if (status === 'requested') {
     return (
       <div className="glass-card p-6 rounded-xl">
-        <h3 className="font-bold text-on-surface mb-4">
-          {isClient ? 'Start Consultation' : 'Consultant Profile'}
-        </h3>
-        {!isClient && (
-          <p className="text-sm text-on-surface-variant">
-            You are viewing this consultant's profile.
+        <h3 className="font-bold text-on-surface mb-4">Waiting for Acceptance</h3>
+        <div className="text-center py-6">
+          <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm font-medium text-on-surface">
+            Waiting for {consultantName} to accept...
           </p>
-        )}
-        {isClient && !isOnline && (
-          <div className="text-center py-4">
-            <p className="text-sm text-on-surface-variant">Consultant is currently offline</p>
-          </div>
-        )}
+          <p className="text-xs text-on-surface-variant mt-2">
+            You can navigate away, the request will stay active for 2 minutes.
+          </p>
+        </div>
       </div>
     )
   }
 
+  // Show "Try Again" for expired or rejected
   if (status === 'rejected' || status === 'expired') {
     return (
       <div className="glass-card p-6 rounded-xl">
@@ -156,26 +136,19 @@ export function BookingCard({
           <p className="text-sm text-error font-medium">
             {status === 'rejected' ? 'Consultation rejected' : 'Request expired'}
           </p>
-          {cooldownSeconds && cooldownSeconds > 0 ? (
-            <div className="mt-4">
-              <p className="text-sm text-on-surface-variant">
-                Please wait <span className="font-bold text-error">{cooldownSeconds}s</span> before trying again
-              </p>
-            </div>
-          ) : (
-            <Button
-              onClick={onTryAgain}
-              variant="gradient"
-              className="mt-4 w-full"
-            >
-              Try Again
-            </Button>
-          )}
+          <Button
+            onClick={onTryAgain}
+            variant="gradient"
+            className="mt-4 w-full"
+          >
+            Try Again
+          </Button>
         </div>
       </div>
     )
   }
 
+  // Show booking form for idle state
   return (
     <div className="glass-card p-6 rounded-xl">
       <h3 className="font-bold text-on-surface mb-4">Start Consultation</h3>

@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import { Star, Clock, User, ArrowLeft, Calendar } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useGetConsultantQuery } from '@/lib/api/consultant'
-import { useRequestConsultationMutation, useGetMyConsultationsQuery } from '@/lib/api/consultation'
+import { useRequestConsultationMutation, useGetMyConsultationsQuery, useExpireConsultationMutation } from '@/lib/api/consultation'
 import { useGetWalletBalanceQuery } from '@/lib/api/wallet'
 import { Navbar } from '@/components/ui/Navbar'
 import { Footer } from '@/components/ui/Footer'
@@ -15,7 +15,6 @@ import { BookingCard } from '@/components/consultations/BookingCard'
 import { ConfirmationModal } from '@/components/consultations/ConfirmationModal'
 import { TimerBanner } from '@/components/consultations/TimerBanner'
 import { formatPrice } from '@/lib/utils/utils'
-import { useCooldown } from '@/hooks/useCooldown'
 import toast from 'react-hot-toast'
 
 type ConsultationStatus = 'idle' | 'requested' | 'accepted' | 'rejected' | 'expired'
@@ -49,9 +48,9 @@ export default function ConsultantProfilePage() {
   })
 
   const [requestConsultation] = useRequestConsultationMutation()
+  const [expireConsultation] = useExpireConsultationMutation()
 
-  // Calculate hasActiveOrPendingConsultation BEFORE the useEffect that uses it
-  // ✅ Only check for consultations with this specific consultant
+  // Check if there's an active or pending consultation with this consultant
   const hasActiveOrPendingConsultation = useMemo(() => {
     if (!myConsultations || !consultantId) return false
     return myConsultations.some(
@@ -60,33 +59,28 @@ export default function ConsultantProfilePage() {
     )
   }, [myConsultations, consultantId])
 
-  const cooldown = useCooldown({
-    duration: 60,
-    onComplete: () => {
-      setConsultationStatus('idle')
-      setTimeLeft(120)
-      setConsultationId(null)
-    },
-  })
-
   const isConsultationRequested = consultationStatus === 'requested'
 
+  // Check for existing pending consultation on mount
   useEffect(() => {
     if (myConsultations && consultantId) {
       const existing = myConsultations.find(
         c => c.consultant_id === consultantId && c.status === 'requested'
       )
       if (existing) {
-        setConsultationStatus('requested')
-        setConsultationId(existing.id)
         const created = new Date(existing.created_at)
         const elapsed = Math.floor((Date.now() - created.getTime()) / 1000)
         const remaining = Math.max(0, 120 - elapsed)
-        setTimeLeft(remaining)
+        
         if (remaining > 0) {
+          setConsultationStatus('requested')
+          setConsultationId(existing.id)
+          setTimeLeft(remaining)
           startPolling()
         } else {
+          // Already expired - update status in DB
           setConsultationStatus('expired')
+          expireConsultation(existing.id).catch(console.error)
         }
       }
     }
@@ -101,55 +95,30 @@ export default function ConsultantProfilePage() {
 
   const startPolling = () => {
     stopPolling()
-
     if (!isAuthenticated || !consultantId) return
 
     pollingIntervalRef.current = setInterval(async () => {
       try {
-        if (isAuthenticated && consultantId) {
-          const result = await refetchConsultations()
-          const consultations = result.data || []
-          const matching = consultations.filter(
-            c => c.consultant_id === consultantId
-          )
-          const found = matching.find(c => c.id === consultationId)
+        const result = await refetchConsultations()
+        const consultations = result.data || []
+        const matching = consultations.filter(c => c.consultant_id === consultantId)
+        const found = matching.find(c => c.id === consultationId)
 
-          if (found) {
-            if (found.status === 'accepted') {
-              setConsultationStatus('accepted')
-              stopPolling()
-              toast.success('Consultation accepted!')
-              setTimeout(() => {
-                router.push(`/chat?consultant=${consultantId}`)
-              }, 1500)
-              return
-            }
-            if (found.status === 'rejected') {
-              setConsultationStatus('rejected')
-              stopPolling()
-              toast.error('Consultation rejected by consultant')
-              return
-            }
-          } else {
-            const accepted = matching.find(c => c.status === 'accepted')
-            if (accepted) {
-              setConsultationStatus('accepted')
-              setConsultationId(accepted.id)
-              stopPolling()
-              toast.success('Consultation accepted!')
-              setTimeout(() => {
-                router.push(`/chat?consultant=${consultantId}`)
-              }, 1500)
-              return
-            }
-            const rejected = matching.find(c => c.status === 'rejected')
-            if (rejected) {
-              setConsultationStatus('rejected')
-              setConsultationId(rejected.id)
-              stopPolling()
-              toast.error('Consultation rejected by consultant')
-              return
-            }
+        if (found) {
+          if (found.status === 'accepted') {
+            setConsultationStatus('accepted')
+            stopPolling()
+            toast.success('Consultation accepted!')
+            setTimeout(() => {
+              router.push(`/chat?consultant=${consultantId}`)
+            }, 1500)
+            return
+          }
+          if (found.status === 'rejected') {
+            setConsultationStatus('rejected')
+            stopPolling()
+            toast.error('Consultation rejected by consultant')
+            return
           }
         }
       } catch (error) {
@@ -158,18 +127,20 @@ export default function ConsultantProfilePage() {
     }, 3000)
   }
 
+  // Timer countdown
   useEffect(() => {
     if (consultationStatus === 'requested' && timeLeft > 0) {
       const timer = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1) {
             clearInterval(timer)
-            setTimeout(() => {
-              setConsultationStatus('expired')
-              toast.error('Consultation request expired')
-              stopPolling()
-              cooldown.start()
-            }, 0)
+            // Expire the consultation
+            if (consultationId) {
+              expireConsultation(consultationId).catch(console.error)
+            }
+            setConsultationStatus('expired')
+            stopPolling()
+            toast.error('Consultation request expired')
             return 0
           }
           return prev - 1
@@ -177,8 +148,9 @@ export default function ConsultantProfilePage() {
       }, 1000)
       return () => clearInterval(timer)
     }
-  }, [consultationStatus, timeLeft, cooldown])
+  }, [consultationStatus, timeLeft, consultationId])
 
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopPolling()
@@ -247,15 +219,10 @@ export default function ConsultantProfilePage() {
   }
 
   const handleTryAgain = () => {
-    if (cooldown.isActive) {
-      toast.error(`Please wait ${cooldown.timeLeft}s before trying again`)
-      return
-    }
     setConsultationStatus('idle')
     setTimeLeft(120)
     setConsultationId(null)
     stopPolling()
-    cooldown.reset()
   }
 
   const handleDismissBanner = () => {
@@ -263,7 +230,6 @@ export default function ConsultantProfilePage() {
     setTimeLeft(120)
     setConsultationId(null)
     stopPolling()
-    cooldown.reset()
   }
 
   if (authLoading || consultantLoading || consultationsLoading) {
@@ -407,7 +373,7 @@ export default function ConsultantProfilePage() {
                 walletBalance={walletBalance}
                 onBookNow={handleBookNow}
                 onTryAgain={handleTryAgain}
-                cooldownSeconds={cooldown.isActive ? cooldown.timeLeft : 0}
+                cooldownSeconds={0}
                 status={consultationStatus}
               />
             </div>

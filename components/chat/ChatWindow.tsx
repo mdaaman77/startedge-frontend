@@ -1,9 +1,10 @@
 'use client'
 
 import { useRef, useEffect, useState } from 'react'
-import { MessageCircle, Send, User, Phone, Video, MoreVertical, Check, CheckCheck } from 'lucide-react'
+import { MessageCircle, Send, User, Phone, Video, MoreVertical, Check, CheckCheck, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { formatDate, formatTime } from '@/lib/utils/utils'
+import { cn } from '@/lib/utils/utils'
 
 interface Message {
   id: string
@@ -24,8 +25,9 @@ interface ChatWindowProps {
   } | null
   messages: Message[]
   isLoading: boolean
-  hasActiveConsultation: boolean
-  isConsultationRequested: boolean
+  hasActiveConsultation: boolean      // accepted or in_progress
+  isConsultationRequested: boolean    // requested (pending)
+  isConsultationExpired: boolean      // expired
   canStartConsultation?: boolean
   onSendMessage?: (content: string) => void
   onStartConsultation?: () => void
@@ -35,6 +37,7 @@ interface ChatWindowProps {
   timerSeconds?: number
   userRole: 'client' | 'consultant'
   totalConversations?: number
+  isConsultant?: boolean
 }
 
 export function ChatWindow({
@@ -43,15 +46,17 @@ export function ChatWindow({
   isLoading,
   hasActiveConsultation,
   isConsultationRequested,
+  isConsultationExpired,
   canStartConsultation = true,
   onSendMessage,
   onStartConsultation,
   onAcceptRequest,
   onRejectRequest,
-  cooldownSeconds = 0, 
+  cooldownSeconds = 0,
   timerSeconds = 0,
   userRole,
   totalConversations = 0,
+  isConsultant = false,
 }: ChatWindowProps) {
   const [newMessage, setNewMessage] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -72,6 +77,15 @@ export function ChatWindow({
       handleSend()
     }
   }
+
+  const isClient = userRole === 'client'
+
+  // Determine what to show in the chat input area
+  const canChat = hasActiveConsultation && !isConsultationRequested && !isConsultationExpired
+  const showTimer = isConsultationRequested && timerSeconds > 0
+  const showCooldown = cooldownSeconds > 0 && !isConsultationRequested && !hasActiveConsultation
+  const showStartConsultation = isClient && !hasActiveConsultation && !isConsultationRequested && !isConsultationExpired && canStartConsultation
+  const showAcceptReject = isConsultant && isConsultationRequested && timerSeconds > 0
 
   if (!otherUser) {
     return (
@@ -97,14 +111,11 @@ export function ChatWindow({
     )
   }
 
-  const isClient = userRole === 'client'
   const fullName = `${otherUser.first_name} ${otherUser.last_name}`
-
-  // ✅ Show timer only if requested AND timerSeconds > 0
-  const showTimer = isConsultationRequested && timerSeconds > 0
 
   return (
     <div className="flex-1 flex flex-col bg-surface">
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-surface-container border-b border-outline-variant/30 flex-shrink-0">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -143,6 +154,7 @@ export function ChatWindow({
         </div>
       </div>
 
+      {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-surface/50">
         {isLoading ? (
           <div className="flex justify-center py-8">
@@ -154,7 +166,9 @@ export function ChatWindow({
               <MessageCircle className="w-8 h-8 text-outline" />
             </div>
             <p className="text-on-surface-variant text-sm font-medium">No messages yet</p>
-            <p className="text-xs text-on-surface-variant/70 mt-1">Start a consultation to begin chatting</p>
+            <p className="text-xs text-on-surface-variant/70 mt-1">
+              {hasActiveConsultation ? 'Start the conversation!' : 'Start a consultation to begin chatting'}
+            </p>
           </div>
         ) : (
           messages.map((msg, index) => {
@@ -172,7 +186,7 @@ export function ChatWindow({
                     </span>
                   </div>
                 )}
-                <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} items-end gap-2`}>
+                <div className={cn('flex items-end gap-2', isOwn ? 'justify-end' : 'justify-start')}>
                   {!isOwn && showAvatar && (
                     <div className="w-8 h-8 rounded-full bg-surface-variant flex items-center justify-center overflow-hidden flex-shrink-0 mb-1">
                       {otherUser.avatar_url ? (
@@ -182,13 +196,17 @@ export function ChatWindow({
                       )}
                     </div>
                   )}
-                  <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl ${isOwn
-                    ? 'bg-primary text-on-primary rounded-br-sm'
-                    : 'bg-surface-container text-on-surface rounded-bl-sm shadow-sm'
-                    }`}>
+                  <div className={cn(
+                    'max-w-[75%] px-4 py-2.5 rounded-2xl',
+                    isOwn
+                      ? 'bg-primary text-on-primary rounded-br-sm'
+                      : 'bg-surface-container text-on-surface rounded-bl-sm shadow-sm'
+                  )}>
                     <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.content}</p>
-                    <div className={`flex items-center justify-end gap-1 mt-1 ${isOwn ? 'text-primary-200/80' : 'text-on-surface-variant/60'
-                      }`}>
+                    <div className={cn(
+                      'flex items-center justify-end gap-1 mt-1',
+                      isOwn ? 'text-primary-200/80' : 'text-on-surface-variant/60'
+                    )}>
                       <span className="text-[10px]">{formatTime(msg.created_at)}</span>
                       {isOwn && (
                         <span className="text-[10px]">
@@ -205,23 +223,43 @@ export function ChatWindow({
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Input Area */}
       <div className="p-3 bg-surface-container border-t border-outline-variant/30 flex-shrink-0">
-        {/* Show waiting for acceptance timer - only when timerSeconds > 0 */}
+        {/* Timer - Waiting for acceptance */}
         {showTimer && (
-          <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl border border-primary/20">
-            <div>
-              <p className="text-sm font-medium text-on-surface">Waiting for {isClient ? 'consultant' : 'client'} to accept...</p>
-              <p className="text-xs text-on-surface-variant">{timerSeconds}s remaining</p>
+          <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl border border-primary/20 mb-3">
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-primary animate-pulse" />
+              <div>
+                <p className="text-sm font-medium text-on-surface">
+                  Waiting for {isClient ? 'consultant' : 'client'} to accept...
+                </p>
+                <p className="text-xs text-on-surface-variant">{timerSeconds}s remaining</p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-primary">{timerSeconds}s</span>
-            </div>
+            <span className="text-2xl font-bold text-primary">{timerSeconds}s</span>
           </div>
         )}
 
-        {/* Show Accept/Reject buttons ONLY if there's a pending request AND user is consultant */}
-        {isConsultationRequested && timerSeconds > 0 && userRole === 'consultant' && (
-          <div className="flex items-center gap-2 w-full">
+        {/* Cooldown after expiry */}
+        {showCooldown && (
+          <div className="flex items-center justify-between p-3 bg-surface-container-low rounded-xl border border-error/20 mb-3">
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-error animate-pulse" />
+              <div>
+                <p className="text-sm font-medium text-on-surface">
+                  Cooldown - Please wait before requesting again
+                </p>
+                <p className="text-xs text-on-surface-variant">Cooldown: {cooldownSeconds}s remaining</p>
+              </div>
+            </div>
+            <span className="text-2xl font-bold text-error">{cooldownSeconds}s</span>
+          </div>
+        )}
+
+        {/* Accept/Reject buttons for consultant */}
+        {showAcceptReject && (
+          <div className="flex items-center gap-2 w-full mb-3">
             <Button onClick={onAcceptRequest} variant="gradient" className="flex-1 rounded-full">
               Accept Request
             </Button>
@@ -230,15 +268,25 @@ export function ChatWindow({
             </Button>
           </div>
         )}
-        {cooldownSeconds && cooldownSeconds > 0 && !isConsultationRequested && !hasActiveConsultation && (
-          <div className="flex items-center justify-center p-3 bg-error/10 rounded-xl border border-error/20">
-            <p className="text-sm text-on-surface-variant">
-              Please wait <span className="font-bold text-error">{cooldownSeconds}s</span> before booking again
-            </p>
+
+        {/* Start Consultation button for clients */}
+        {showStartConsultation && (
+          <div className="flex flex-col items-center gap-2">
+            {otherUser.is_online ? (
+              <Button onClick={onStartConsultation} variant="gradient" className="w-full rounded-full">
+                <MessageCircle className="w-4 h-4 mr-2" />
+                Start Consultation
+              </Button>
+            ) : (
+              <div className="flex items-center gap-2 text-on-surface-variant text-sm py-2">
+                <span>Consultant is offline</span>
+              </div>
+            )}
           </div>
         )}
-        {/* Show message input when consultation is active */}
-        {hasActiveConsultation && !isConsultationRequested && (
+
+        {/* Chat input - only visible when consultation is active */}
+        {canChat && (
           <div className="flex items-center gap-2 bg-surface-container-low rounded-full px-3 py-1 border border-outline-variant/30">
             <input
               type="text"
@@ -258,34 +306,24 @@ export function ChatWindow({
           </div>
         )}
 
-        {/* Show "Start Consultation" for clients when no active consultation and no pending request */}
-        {!hasActiveConsultation && !isConsultationRequested && userRole === 'client' && (
-          <div className="flex flex-col items-center gap-2">
-            {cooldownSeconds && cooldownSeconds > 0 ? (
-              <div className="flex items-center gap-2 text-on-surface-variant text-sm py-2">
-                <span>Cooldown: {cooldownSeconds}s</span>
-              </div>
-            ) : canStartConsultation && otherUser.is_online ? (
-              <Button onClick={onStartConsultation} variant="gradient" className="w-full rounded-full">
-                <MessageCircle className="w-4 h-4 mr-2" />
-                Start Consultation
-              </Button>
-            ) : !canStartConsultation ? (
-              <div className="flex items-center gap-2 text-on-surface-variant text-sm py-2">
-                <span>You have already requested a consultation</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-on-surface-variant text-sm">
-                <span>Consultant is offline</span>
-              </div>
-            )}
+        {/* Consultant idle state */}
+        {isConsultant && !hasActiveConsultation && !isConsultationRequested && !isConsultationExpired && (
+          <div className="flex items-center justify-center text-on-surface-variant text-sm py-2">
+            <span>No active consultation. Wait for client requests.</span>
           </div>
         )}
 
-        {/* Show nothing for consultant when no active consultation and no pending request */}
-        {!hasActiveConsultation && !isConsultationRequested && userRole === 'consultant' && (
+        {/* Client waiting for acceptance (timer expired but status not updated) */}
+        {isClient && isConsultationRequested && !hasActiveConsultation && timerSeconds === 0 && !isConsultationExpired && (
           <div className="flex items-center justify-center text-on-surface-variant text-sm py-2">
-            <span>No active consultation</span>
+            <span>Waiting for consultant to accept...</span>
+          </div>
+        )}
+
+        {/* Expired state - show message, button will appear when cooldown ends */}
+        {isClient && isConsultationExpired && !hasActiveConsultation && cooldownSeconds === 0 && (
+          <div className="flex items-center justify-center text-on-surface-variant text-sm py-2">
+            <span>Request expired. You can request again.</span>
           </div>
         )}
       </div>

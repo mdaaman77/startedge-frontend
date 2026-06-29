@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Search, MessageCircle, ArrowLeft } from 'lucide-react'
-import { useConsultationTimer } from '@/hooks/useConsultationTimer'
 import { useAuth } from '@/hooks/useAuth'
 import {
     useGetRecentConsultantsQuery,
@@ -38,6 +37,7 @@ export default function ChatPage() {
     const [selectedMinutes, setSelectedMinutes] = useState(15)
     const [isBooking, setIsBooking] = useState(false)
     const [consultationStatus, setConsultationStatus] = useState<ConsultationStatus>('idle')
+    const [timeLeft, setTimeLeft] = useState(120)
     const [pendingRequestId, setPendingRequestId] = useState<string | null>(null)
     const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null)
 
@@ -83,54 +83,29 @@ export default function ChatPage() {
 
     const hasActiveConsultation = selectedUser?.has_ongoing_consultation || false
 
-    const hasPendingRequest = allConsultations?.some(
-        c => c.consultant_id === selectedConsultantId && c.status === 'requested'
-    ) || false
-
     const pendingRequest = allConsultations?.find(
         c => c.consultant_id === selectedConsultantId && c.status === 'requested'
     )
 
-    const isConsultationRequested = consultationStatus === 'requested' || hasPendingRequest
+    const hasPendingRequest = !!pendingRequest
 
-    // ✅ Timer with expire API call
-    const timer = useConsultationTimer({
-        duration: 120,
-        cooldownDuration: 60,
-        onExpire: async () => {
-            // ✅ API call happens IMMEDIATELY when timer hits 0
-            if (pendingRequestId) {
-                try {
-                    await expireConsultation(pendingRequestId).unwrap()
-                    toast.error('Consultation request expired')
-                } catch (error) {
-                    console.error('Failed to expire consultation:', error)
-                }
-            }
-            setConsultationStatus('expired')
-            setPendingRequestId(null)
-            if (pollingInterval) {
-                clearInterval(pollingInterval)
-                setPollingInterval(null)
-            }
-            // Start cooldown after expire API call
-            timer.startCooldown()
-        },
-        onCooldownComplete: () => {
-            setConsultationStatus('idle')
-            toast.success('You can now request a new consultation')
-        },
-    })
+    const expiredRequest = allConsultations?.find(
+        c => c.consultant_id === selectedConsultantId && c.status === 'expired'
+    )
+
+    const hasExpiredRequest = !!expiredRequest
+
+    const isConsultationRequested = consultationStatus === 'requested' || hasPendingRequest
+    const isConsultationExpired = consultationStatus === 'expired' || hasExpiredRequest
 
     const canStartConsultation = useMemo(() => {
         if (!selectedConsultantId || !isClient) return false
-        if (timer.isCooldown) return false
         const existing = allConsultations?.some(
             c => c.consultant_id === selectedConsultantId &&
                 ['requested', 'accepted', 'in_progress'].includes(c.status)
         )
         return !existing && selectedUser?.is_online === true
-    }, [allConsultations, selectedConsultantId, isClient, selectedUser?.is_online, timer.isCooldown])
+    }, [allConsultations, selectedConsultantId, isClient, selectedUser?.is_online])
 
     useEffect(() => {
         setMounted(true)
@@ -158,42 +133,52 @@ export default function ChatPage() {
         }
     }, [selectedConsultantId, isAuthenticated, refetchMessages, refetchConsultations, isLoadingConsultations])
 
-    // ✅ Check for expired consultation on mount
+    // Timer countdown
     useEffect(() => {
-        if (allConsultations && selectedConsultantId) {
-            const expired = allConsultations.find(
-                c => c.consultant_id === selectedConsultantId && c.status === 'expired'
-            )
-            if (expired) {
-                setConsultationStatus('expired')
-                setPendingRequestId(null)
-                if (pollingInterval) {
-                    clearInterval(pollingInterval)
-                    setPollingInterval(null)
-                }
-            }
+        if (consultationStatus === 'requested' && timeLeft > 0) {
+            const timer = setInterval(() => {
+                setTimeLeft((prev) => {
+                    if (prev <= 1) {
+                        clearInterval(timer)
+                        // Expire the consultation
+                        if (pendingRequestId) {
+                            expireConsultation(pendingRequestId).catch(console.error)
+                        }
+                        setConsultationStatus('expired')
+                        setPendingRequestId(null)
+                        if (pollingInterval) {
+                            clearInterval(pollingInterval)
+                            setPollingInterval(null)
+                        }
+                        toast.error('Consultation request expired')
+                        return 0
+                    }
+                    return prev - 1
+                })
+            }, 1000)
+            return () => clearInterval(timer)
         }
-    }, [allConsultations, selectedConsultantId])
+    }, [consultationStatus, timeLeft, pendingRequestId])
 
-    // ✅ Polling for acceptance
+    // Polling for acceptance
     useEffect(() => {
-        if (timer.isRunning && selectedConsultantId && isClient) {
+        if (consultationStatus === 'requested' && selectedConsultantId && isClient) {
             const interval = setInterval(async () => {
                 try {
-                    const result = await refetchConsultants()
-                    const consultantsData = result.data || []
-                    const found = consultantsData.find(
-                        (item: any) => item.id === selectedConsultantId && item.has_ongoing_consultation === true
+                    const result = await refetchConsultations()
+                    const consultations = result.data || []
+                    const found = consultations.find(
+                        (c: any) => c.consultant_id === selectedConsultantId &&
+                            ['accepted', 'in_progress'].includes(c.status)
                     )
                     if (found) {
                         setConsultationStatus('accepted')
                         clearInterval(interval)
                         setPollingInterval(null)
-                        timer.stop()
-                        toast.success('Consultation accepted!')
+                        toast.success('Consultation accepted! You can now chat.')
                         setTimeout(() => {
-                            router.push(`/chat?consultant=${selectedConsultantId}`)
-                        }, 1500)
+                            refetchMessages()
+                        }, 500)
                     }
                 } catch (error) {
                     console.error('Polling error:', error)
@@ -205,35 +190,72 @@ export default function ChatPage() {
                 if (interval) clearInterval(interval)
             }
         }
-    }, [timer.isRunning, selectedConsultantId, isClient, refetchConsultants, router, timer])
+    }, [consultationStatus, selectedConsultantId, isClient, refetchConsultations, refetchMessages])
+
+    // Initialize from existing consultations
+    useEffect(() => {
+        if (allConsultations && selectedConsultantId) {
+            const pending = allConsultations.find(
+                c => c.consultant_id === selectedConsultantId && c.status === 'requested'
+            )
+            const expired = allConsultations.find(
+                c => c.consultant_id === selectedConsultantId && c.status === 'expired'
+            )
+            const active = allConsultations.find(
+                c => c.consultant_id === selectedConsultantId &&
+                    ['accepted', 'in_progress'].includes(c.status)
+            )
+
+            if (active) {
+                setConsultationStatus('accepted')
+                setPendingRequestId(null)
+                return
+            }
+
+            if (pending) {
+                const created = new Date(pending.created_at)
+                const elapsed = Math.floor((Date.now() - created.getTime()) / 1000)
+                const remaining = Math.max(0, 120 - elapsed)
+
+                setPendingRequestId(pending.id)
+
+                if (remaining > 0) {
+                    setConsultationStatus('requested')
+                    setTimeLeft(remaining)
+                } else {
+                    setConsultationStatus('expired')
+                    setPendingRequestId(null)
+                    expireConsultation(pending.id).catch(console.error)
+                }
+            } else if (expired) {
+                setConsultationStatus('expired')
+                setPendingRequestId(null)
+            } else {
+                setConsultationStatus('idle')
+                setPendingRequestId(null)
+                setTimeLeft(120)
+            }
+        }
+    }, [allConsultations, selectedConsultantId])
 
     const handleConsultantClick = useCallback((id: string) => {
         setSelectedConsultantId(id)
         setConsultationStatus('idle')
+        setTimeLeft(120)
         setPendingRequestId(null)
-        timer.reset()
         if (pollingInterval) {
             clearInterval(pollingInterval)
             setPollingInterval(null)
         }
         router.push(`/chat?consultant=${id}`)
-    }, [router, timer])
+    }, [router])
 
     const handleStartConsultation = useCallback(() => {
-        if (timer.isCooldown) {
-            toast.error(`Please wait ${timer.timeLeft}s before booking again`)
-            return
-        }
-        setConsultationStatus('idle')
         setShowBookingModal(true)
-    }, [timer.isCooldown, timer.timeLeft])
+    }, [])
 
     const handleBookingConfirm = async (minutes: number) => {
         if (!selectedConsultantId) return
-        if (timer.isCooldown) {
-            toast.error(`Please wait ${timer.timeLeft}s before booking again`)
-            return
-        }
 
         setIsBooking(true)
         try {
@@ -246,17 +268,11 @@ export default function ChatPage() {
             toast.success('Consultation requested! Waiting for consultant to accept.')
             setShowBookingModal(false)
             setConsultationStatus('requested')
-            timer.start()
+            setTimeLeft(120)
 
-            try {
-                if (!isLoadingConsultations) {
-                    await refetchConsultations()
-                }
-                await refetchConsultants()
-                await refetchClients()
-            } catch (refetchError) {
-                console.debug('Refetch skipped or failed:', refetchError)
-            }
+            await refetchConsultations()
+            await refetchConsultants()
+            await refetchClients()
 
         } catch (error: any) {
             let message = 'Failed to request consultation'
@@ -272,7 +288,6 @@ export default function ChatPage() {
             }
             toast.error(message)
             setConsultationStatus('idle')
-            timer.startCooldown()
         } finally {
             setIsBooking(false)
         }
@@ -283,10 +298,12 @@ export default function ChatPage() {
 
         try {
             await acceptConsultation(pendingRequest.id).unwrap()
-            toast.success('Consultation accepted!')
+            toast.success('Consultation accepted! You can now chat with the client.')
             setConsultationStatus('accepted')
             setPendingRequestId(null)
-            timer.stop()
+            setTimeLeft(0)
+            await refetchConsultations()
+            await refetchConsultants()
             router.push(`/chat?consultant=${selectedConsultantId}`)
         } catch (error: any) {
             toast.error(error?.data?.detail || 'Failed to accept')
@@ -301,14 +318,10 @@ export default function ChatPage() {
             toast.success('Consultation rejected')
             setConsultationStatus('idle')
             setPendingRequestId(null)
-            timer.reset()
-            try {
-                if (!isLoadingConsultations) {
-                    await refetchConsultations()
-                }
-            } catch (refetchError) {
-                console.debug('Refetch skipped or failed:', refetchError)
-            }
+            setTimeLeft(120)
+            await refetchConsultations()
+            await refetchConsultants()
+            await refetchClients()
         } catch (error: any) {
             toast.error(error?.data?.detail || 'Failed to reject')
         }
@@ -419,16 +432,21 @@ export default function ChatPage() {
                     } : null}
                     messages={messages || []}
                     isLoading={messagesLoading}
-                    cooldownSeconds={timer.isCooldown ? timer.timeLeft : 0}
                     hasActiveConsultation={hasActiveConsultation}
                     isConsultationRequested={isConsultationRequested}
+                    isConsultationExpired={isConsultationExpired}
                     canStartConsultation={canStartConsultation}
+                    onSendMessage={(content) => {
+                        console.log('Send message:', content)
+                    }}
                     onStartConsultation={handleStartConsultation}
                     onAcceptRequest={handleAcceptRequest}
                     onRejectRequest={handleRejectRequest}
+                    cooldownSeconds={0}
+                    timerSeconds={consultationStatus === 'requested' ? timeLeft : 0}
                     userRole={isClient ? 'client' : 'consultant'}
                     totalConversations={listItems?.length || 0}
-                    timerSeconds={timer.isRunning ? timer.timeLeft : 0}
+                    isConsultant={isConsultant}
                 />
             </div>
 

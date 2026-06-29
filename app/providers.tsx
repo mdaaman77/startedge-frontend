@@ -13,6 +13,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     store.dispatch(hydrateAuth())
     store.dispatch(hydrateTheme())
+    // ❌ Remove hydrateCooldowns - no longer needed
     setMounted(true)
   }, [])
 
